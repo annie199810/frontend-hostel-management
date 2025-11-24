@@ -1,21 +1,23 @@
-
 import React, { useEffect, useMemo, useState } from "react";
 import Card from "../components/Card";
 
 var API_BASE = import.meta.env.VITE_API_BASE_URL;
 
-
-
 function StatusBadge(props) {
-  var v = props.value || "";
+  // normalise
+  var raw = props.value || "active";
+  var v = String(raw).toLowerCase();
+
   var cls =
-    v === "Checked-Out"
+    v === "checked-out"
       ? "bg-gray-100 text-gray-700"
       : "bg-emerald-50 text-emerald-700";
 
+  var label = v === "checked-out" ? "Checked-Out" : "Active";
+
   return (
     <span className={"px-2 py-0.5 rounded-full text-xs font-medium " + cls}>
-      {v || "Active"}
+      {label}
     </span>
   );
 }
@@ -26,20 +28,20 @@ export default function ResidentsPage() {
   var [error, setError] = useState("");
 
   var [search, setSearch] = useState("");
-  var [statusFilter, setStatusFilter] = useState("all");
+  var [statusFilter, setStatusFilter] = useState("all"); // all | active | checked-out
 
   var [showForm, setShowForm] = useState(false);
-  var [formMode, setFormMode] = useState("add"); 
+  var [formMode, setFormMode] = useState("add");
   var [formData, setFormData] = useState({
     _id: null,
     name: "",
     roomNumber: "",
     phone: "",
-    status: "Active",
+    status: "active",
     checkIn: "",
   });
 
-  
+  // ----------------- LOAD DATA -----------------
   useEffect(function () {
     async function load() {
       try {
@@ -53,7 +55,7 @@ export default function ResidentsPage() {
         }
         setItems(json.residents || []);
       } catch (err) {
-      //  console.error("Load residents error", err);
+        // console.error("Load residents error", err);
         setError("Failed to load residents");
       } finally {
         setLoading(false);
@@ -62,7 +64,7 @@ export default function ResidentsPage() {
     load();
   }, []);
 
-  
+  // ----------------- FILTER -----------------
   var filteredItems = useMemo(
     function () {
       var text = (search || "").toLowerCase();
@@ -71,11 +73,14 @@ export default function ResidentsPage() {
         var matchSearch =
           !text ||
           (r.name && r.name.toLowerCase().indexOf(text) !== -1) ||
-          (r.roomNumber && String(r.roomNumber).toLowerCase().indexOf(text) !== -1) ||
+          (r.roomNumber &&
+            String(r.roomNumber).toLowerCase().indexOf(text) !== -1) ||
           (r.phone && r.phone.toLowerCase().indexOf(text) !== -1);
 
+        var itemStatus = (r.status || "active").toLowerCase();
+
         var matchStatus =
-          statusFilter === "all" || (r.status || "Active") === statusFilter;
+          statusFilter === "all" || itemStatus === statusFilter;
 
         return matchSearch && matchStatus;
       });
@@ -83,7 +88,7 @@ export default function ResidentsPage() {
     [items, search, statusFilter]
   );
 
-  
+  // ----------------- FORM HELPERS -----------------
   function openAddForm() {
     setFormMode("add");
     setFormData({
@@ -91,7 +96,7 @@ export default function ResidentsPage() {
       name: "",
       roomNumber: "",
       phone: "",
-      status: "Active",
+      status: "active",
       checkIn: new Date().toISOString().slice(0, 10),
     });
     setShowForm(true);
@@ -104,7 +109,7 @@ export default function ResidentsPage() {
       name: row.name || "",
       roomNumber: row.roomNumber || "",
       phone: row.phone || "",
-      status: row.status || "Active",
+      status: (row.status || "active").toLowerCase(),
       checkIn: row.checkIn || "",
     });
     setShowForm(true);
@@ -116,6 +121,7 @@ export default function ResidentsPage() {
     });
   }
 
+  // ----------------- SAVE (ADD / EDIT) -----------------
   async function handleFormSubmit(e) {
     e.preventDefault();
 
@@ -127,14 +133,13 @@ export default function ResidentsPage() {
     try {
       if (formMode === "add") {
         var resAdd = await fetch(API_BASE + "/api/residents", {
-
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name: formData.name,
             roomNumber: formData.roomNumber,
             phone: formData.phone,
-            status: formData.status,
+            status: formData.status, // <-- already lower-case
             checkIn: formData.checkIn,
           }),
         });
@@ -151,15 +156,14 @@ export default function ResidentsPage() {
       } else {
         var id = formData._id;
 
-       var resEdit = await fetch(API_BASE + "/api/residents/" + id, {
-
+        var resEdit = await fetch(API_BASE + "/api/residents/" + id, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name: formData.name,
             roomNumber: formData.roomNumber,
             phone: formData.phone,
-            status: formData.status,
+            status: formData.status, // lower-case
             checkIn: formData.checkIn,
           }),
         });
@@ -182,17 +186,17 @@ export default function ResidentsPage() {
 
       setShowForm(false);
     } catch (err) {
-     // console.error("Save resident error", err);
+      // console.error("Save resident error", err);
       alert("Failed to save resident");
     }
   }
 
+  // ----------------- DELETE -----------------
   async function handleDelete(row) {
     if (!window.confirm("Delete resident " + row.name + "?")) return;
 
     try {
       var res = await fetch(API_BASE + "/api/residents/" + row._id, {
-
         method: "DELETE",
       });
       var json = await res.json();
@@ -207,12 +211,12 @@ export default function ResidentsPage() {
         });
       });
     } catch (err) {
-     // console.error("Delete resident error", err);
+      // console.error("Delete resident error", err);
       alert("Failed to delete resident");
     }
   }
 
-  
+  // ----------------- UI -----------------
   return (
     <main className="p-6 space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -251,8 +255,8 @@ export default function ResidentsPage() {
             }}
           >
             <option value="all">All Status</option>
-            <option value="Active">Active</option>
-            <option value="Checked-Out">Checked-Out</option>
+            <option value="active">Active</option>
+            <option value="checked-out">Checked-Out</option>
           </select>
         </div>
 
@@ -407,8 +411,8 @@ export default function ResidentsPage() {
                       handleFormChange("status", e.target.value);
                     }}
                   >
-                    <option value="Active">Active</option>
-                    <option value="Checked-Out">Checked-Out</option>
+                    <option value="active">Active</option>
+                    <option value="checked-out">Checked-Out</option>
                   </select>
                 </div>
               </div>
