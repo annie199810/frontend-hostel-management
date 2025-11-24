@@ -1,4 +1,4 @@
-// server/src/index.js
+
 
 require("dotenv").config();
 const express = require("express");
@@ -13,11 +13,7 @@ const User = require("./models/User");
 
 const app = express();
 
-/* ---------------------------------------------
-   Global middlewares
---------------------------------------------- */
 
-// 🔍 Debug logger – this will show which origin is calling which API
 app.use(function (req, res, next) {
   console.log(
     "[REQ]",
@@ -29,15 +25,13 @@ app.use(function (req, res, next) {
   next();
 });
 
-// 🌐 CORS – allow all origins (Netlify, localhost, etc.)
+
 app.use(cors());
 
-// Parse JSON bodies
+
 app.use(express.json());
 
-/* ---------------------------------------------
-   MongoDB connection
---------------------------------------------- */
+
 
 mongoose
   .connect(process.env.MONGO_URI)
@@ -48,9 +42,7 @@ mongoose
     console.error("MongoDB Error:", err);
   });
 
-/* ---------------------------------------------
-   User routes
---------------------------------------------- */
+
 
 app.get("/api/users", async function (req, res) {
   try {
@@ -148,9 +140,7 @@ app.delete("/api/users/:id", async function (req, res) {
   }
 });
 
-/* ---------------------------------------------
-   Billing routes
---------------------------------------------- */
+
 
 app.get("/api/billing", async function (req, res) {
   try {
@@ -199,9 +189,7 @@ app.post("/api/billing", async function (req, res) {
   }
 });
 
-/* ---------------------------------------------
-   Maintenance routes
---------------------------------------------- */
+
 
 app.get("/api/maintenance", async function (req, res) {
   try {
@@ -247,9 +235,7 @@ app.post("/api/maintenance", async function (req, res) {
   }
 });
 
-/* ---------------------------------------------
-   Residents routes
---------------------------------------------- */
+
 
 app.get("/api/residents", async function (req, res) {
   try {
@@ -327,9 +313,7 @@ app.delete("/api/residents/:id", async function (req, res) {
   }
 });
 
-/* ---------------------------------------------
-   Rooms routes
---------------------------------------------- */
+
 
 app.get("/api/rooms", async function (req, res) {
   try {
@@ -425,17 +409,13 @@ app.post("/api/rooms/:id/checkout", async function (req, res) {
   }
 });
 
-/* ---------------------------------------------
-   Root route
---------------------------------------------- */
+
 
 app.get("/", function (req, res) {
   res.send("Hostel Management API with MongoDB is running");
 });
 
-/* ---------------------------------------------
-   Start server
---------------------------------------------- */
+
 
 var PORT = process.env.PORT || 5000;
 app.listen(PORT, function () {

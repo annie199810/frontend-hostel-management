@@ -4,7 +4,7 @@ import Card from "../components/Card";
 var API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 function StatusBadge(props) {
-  // normalise
+
   var raw = props.value || "active";
   var v = String(raw).toLowerCase();
 
@@ -28,7 +28,7 @@ export default function ResidentsPage() {
   var [error, setError] = useState("");
 
   var [search, setSearch] = useState("");
-  var [statusFilter, setStatusFilter] = useState("all"); // all | active | checked-out
+  var [statusFilter, setStatusFilter] = useState("all"); 
 
   var [showForm, setShowForm] = useState(false);
   var [formMode, setFormMode] = useState("add");
@@ -41,7 +41,7 @@ export default function ResidentsPage() {
     checkIn: "",
   });
 
-  // ----------------- LOAD DATA -----------------
+
   useEffect(function () {
     async function load() {
       try {
@@ -55,7 +55,7 @@ export default function ResidentsPage() {
         }
         setItems(json.residents || []);
       } catch (err) {
-        // console.error("Load residents error", err);
+       
         setError("Failed to load residents");
       } finally {
         setLoading(false);
@@ -64,7 +64,7 @@ export default function ResidentsPage() {
     load();
   }, []);
 
-  // ----------------- FILTER -----------------
+ 
   var filteredItems = useMemo(
     function () {
       var text = (search || "").toLowerCase();
@@ -88,7 +88,7 @@ export default function ResidentsPage() {
     [items, search, statusFilter]
   );
 
-  // ----------------- FORM HELPERS -----------------
+  
   function openAddForm() {
     setFormMode("add");
     setFormData({
@@ -121,7 +121,7 @@ export default function ResidentsPage() {
     });
   }
 
-  // ----------------- SAVE (ADD / EDIT) -----------------
+  
   async function handleFormSubmit(e) {
     e.preventDefault();
 
@@ -139,7 +139,7 @@ export default function ResidentsPage() {
             name: formData.name,
             roomNumber: formData.roomNumber,
             phone: formData.phone,
-            status: formData.status, // <-- already lower-case
+            status: formData.status, 
             checkIn: formData.checkIn,
           }),
         });
@@ -163,7 +163,7 @@ export default function ResidentsPage() {
             name: formData.name,
             roomNumber: formData.roomNumber,
             phone: formData.phone,
-            status: formData.status, // lower-case
+            status: formData.status, 
             checkIn: formData.checkIn,
           }),
         });
@@ -186,12 +186,12 @@ export default function ResidentsPage() {
 
       setShowForm(false);
     } catch (err) {
-      // console.error("Save resident error", err);
+     
       alert("Failed to save resident");
     }
   }
 
-  // ----------------- DELETE -----------------
+  
   async function handleDelete(row) {
     if (!window.confirm("Delete resident " + row.name + "?")) return;
 
@@ -211,12 +211,12 @@ export default function ResidentsPage() {
         });
       });
     } catch (err) {
-      // console.error("Delete resident error", err);
+     
       alert("Failed to delete resident");
     }
   }
 
-  // ----------------- UI -----------------
+ 
   return (
     <main className="p-6 space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
