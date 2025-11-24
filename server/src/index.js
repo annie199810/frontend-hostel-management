@@ -1,4 +1,4 @@
-
+// server/src/index.js
 
 require("dotenv").config();
 const express = require("express");
@@ -13,27 +13,48 @@ const User = require("./models/User");
 
 const app = express();
 
-const corsOptions = {
-  origin: [
-    "http://localhost:5173",
-    "https://hostelmanagementann.netlify.app",
-    "https://hostelmanagementtann.netlify.app", 
-  ],
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: [
-    "Origin",
-    "X-Requested-With",
-    "Content-Type",
-    "Accept",
-    "Authorization"
-  ],
-  credentials: true
-};
+/* -------------------- CORS SETUP -------------------- */
 
-app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://hostelmanagementann.netlify.app" // your Netlify app
+];
 
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // allow tools like Postman / Render health checks (no Origin header)
+      if (!origin) {
+        return callback(null, true);
+      }
 
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        return callback(null, true);
+      }
+
+      // origin not allowed – reject silently (no error in logs)
+      return callback(null, false);
+    },
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Origin",
+      "X-Requested-With",
+      "Content-Type",
+      "Accept",
+      "Authorization"
+    ],
+    credentials: true
+  })
+);
+
+// handle preflight
+app.options("*", cors());
+
+/* ------------- BODY PARSER (VERY IMPORTANT) --------- */
+
+app.use(express.json());
+
+/* -------------------- MONGODB ----------------------- */
 
 mongoose
   .connect(process.env.MONGO_URI)
@@ -44,7 +65,7 @@ mongoose
     console.error("MongoDB Error:", err);
   });
 
-
+/* -------------------- USER ROUTES ------------------- */
 
 app.get("/api/users", async function (req, res) {
   try {
@@ -55,7 +76,6 @@ app.get("/api/users", async function (req, res) {
     res.status(500).json({ ok: false, error: "Failed to load users" });
   }
 });
-
 
 app.post("/api/users", async function (req, res) {
   try {
@@ -69,7 +89,7 @@ app.post("/api/users", async function (req, res) {
     if (!name || !email || !password) {
       return res.status(400).json({
         ok: false,
-        error: "Name, email and password are required",
+        error: "Name, email and password are required"
       });
     }
 
@@ -78,7 +98,7 @@ app.post("/api/users", async function (req, res) {
       email: email,
       password: password,
       role: role,
-      status: status,
+      status: status
     });
 
     res.status(201).json({ ok: true, user: user });
@@ -86,15 +106,12 @@ app.post("/api/users", async function (req, res) {
     console.error("Error creating user:", err);
 
     if (err && err.code === 11000) {
-      return res
-        .status(409)
-        .json({ ok: false, error: "Email already exists" });
+      return res.status(409).json({ ok: false, error: "Email already exists" });
     }
 
     res.status(500).json({ ok: false, error: "Failed to create user" });
   }
 });
-
 
 app.put("/api/users/:id", async function (req, res) {
   try {
@@ -119,15 +136,12 @@ app.put("/api/users/:id", async function (req, res) {
     console.error("Error updating user:", err);
 
     if (err && err.code === 11000) {
-      return res
-        .status(409)
-        .json({ ok: false, error: "Email already exists" });
+      return res.status(409).json({ ok: false, error: "Email already exists" });
     }
 
     res.status(500).json({ ok: false, error: "Failed to update user" });
   }
 });
-
 
 app.delete("/api/users/:id", async function (req, res) {
   try {
@@ -145,7 +159,7 @@ app.delete("/api/users/:id", async function (req, res) {
   }
 });
 
-
+/* -------------------- BILLING ROUTES ---------------- */
 
 app.get("/api/billing", async function (req, res) {
   try {
@@ -159,7 +173,6 @@ app.get("/api/billing", async function (req, res) {
   }
 });
 
-
 app.post("/api/billing", async function (req, res) {
   try {
     var body = req.body || {};
@@ -171,7 +184,7 @@ app.post("/api/billing", async function (req, res) {
     if (!residentName || !roomNumber || amount == null || !month) {
       return res.status(400).json({
         ok: false,
-        error: "Resident name, room, amount and month are required",
+        error: "Resident name, room, amount and month are required"
       });
     }
 
@@ -183,7 +196,7 @@ app.post("/api/billing", async function (req, res) {
       status: body.status || "Paid",
       method: body.method || "Cash",
       dueDate: body.dueDate || "",
-      paidOn: body.paidOn || new Date().toISOString().slice(0, 10),
+      paidOn: body.paidOn || new Date().toISOString().slice(0, 10)
     });
 
     res.status(201).json({ ok: true, payment: doc });
@@ -195,7 +208,7 @@ app.post("/api/billing", async function (req, res) {
   }
 });
 
-
+/* ----------------- MAINTENANCE ROUTES --------------- */
 
 app.get("/api/maintenance", async function (req, res) {
   try {
@@ -209,7 +222,6 @@ app.get("/api/maintenance", async function (req, res) {
   }
 });
 
-
 app.post("/api/maintenance", async function (req, res) {
   try {
     var body = req.body || {};
@@ -219,7 +231,7 @@ app.post("/api/maintenance", async function (req, res) {
     if (!roomNumber || !issue) {
       return res.status(400).json({
         ok: false,
-        error: "Room number and issue are required",
+        error: "Room number and issue are required"
       });
     }
 
@@ -230,7 +242,7 @@ app.post("/api/maintenance", async function (req, res) {
       priority: body.priority || "Medium",
       status: body.status || "Open",
       reportedBy: body.reportedBy || "",
-      reportedOn: body.reportedOn || new Date().toISOString().slice(0, 10),
+      reportedOn: body.reportedOn || new Date().toISOString().slice(0, 10)
     });
 
     res.status(201).json({ ok: true, request: doc });
@@ -242,7 +254,7 @@ app.post("/api/maintenance", async function (req, res) {
   }
 });
 
-
+/* ------------------- RESIDENT ROUTES ---------------- */
 
 app.get("/api/residents", async function (req, res) {
   try {
@@ -253,7 +265,6 @@ app.get("/api/residents", async function (req, res) {
     res.status(500).json({ ok: false, error: "Failed to load residents" });
   }
 });
-
 
 app.post("/api/residents", async function (req, res) {
   try {
@@ -273,7 +284,7 @@ app.post("/api/residents", async function (req, res) {
       roomNumber: roomNumber,
       phone: phone,
       status: status,
-      checkIn: checkIn,
+      checkIn: checkIn
     });
 
     res.status(201).json({ ok: true, resident: newRes });
@@ -283,7 +294,6 @@ app.post("/api/residents", async function (req, res) {
   }
 });
 
-
 app.put("/api/residents/:id", async function (req, res) {
   try {
     var id = req.params.id;
@@ -291,7 +301,7 @@ app.put("/api/residents/:id", async function (req, res) {
 
     var updated = await Resident.findByIdAndUpdate(id, body, {
       new: true,
-      runValidators: true,
+      runValidators: true
     });
 
     if (!updated) {
@@ -304,7 +314,6 @@ app.put("/api/residents/:id", async function (req, res) {
     res.status(500).json({ ok: false, error: "Failed to update resident" });
   }
 });
-
 
 app.delete("/api/residents/:id", async function (req, res) {
   try {
@@ -323,7 +332,7 @@ app.delete("/api/residents/:id", async function (req, res) {
   }
 });
 
-
+/* --------------------- ROOM ROUTES ------------------ */
 
 app.get("/api/rooms", async function (req, res) {
   try {
@@ -335,7 +344,6 @@ app.get("/api/rooms", async function (req, res) {
   }
 });
 
-
 app.post("/api/rooms", async function (req, res) {
   try {
     var number = req.body.number;
@@ -346,7 +354,7 @@ app.post("/api/rooms", async function (req, res) {
     if (!number || pricePerMonth == null) {
       return res.status(400).json({
         ok: false,
-        error: "Room number and price required",
+        error: "Room number and price required"
       });
     }
 
@@ -355,7 +363,7 @@ app.post("/api/rooms", async function (req, res) {
       type: type,
       status: status,
       pricePerMonth: pricePerMonth,
-      occupants: [],
+      occupants: []
     });
 
     res.status(201).json({ ok: true, room: room });
@@ -364,7 +372,6 @@ app.post("/api/rooms", async function (req, res) {
     res.status(500).json({ ok: false, error: "Failed to create room" });
   }
 });
-
 
 app.post("/api/rooms/:id/assign", async function (req, res) {
   try {
@@ -385,7 +392,7 @@ app.post("/api/rooms/:id/assign", async function (req, res) {
     var occupant = {
       residentId: residentId,
       name: resident.name,
-      checkIn: checkInDate || new Date().toISOString(),
+      checkIn: checkInDate || new Date().toISOString()
     };
 
     room.occupants.push(occupant);
@@ -399,7 +406,6 @@ app.post("/api/rooms/:id/assign", async function (req, res) {
     res.status(500).json({ ok: false, error: "Failed to assign room" });
   }
 });
-
 
 app.post("/api/rooms/:id/checkout", async function (req, res) {
   try {
@@ -422,15 +428,13 @@ app.post("/api/rooms/:id/checkout", async function (req, res) {
   }
 });
 
-
-
+/* ---------------------- ROOT ------------------------ */
 
 app.get("/", function (req, res) {
   res.send("Hostel Management API with MongoDB is running");
 });
 
-
-
+/* ---------------------- SERVER ---------------------- */
 
 var PORT = process.env.PORT || 5000;
 app.listen(PORT, function () {
