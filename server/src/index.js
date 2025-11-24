@@ -14,17 +14,26 @@ const User = require("./models/User");
 const app = express();
 
 const corsOptions = {
-  origin: [
-    "http://localhost:5173",
-    "https://hostelmanagementann.netlify.app"
-  ],
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type"],
+  origin: function (origin, callback) {
+    var allowed = [
+      "http://localhost:5173",
+      "https://hostelmanagementann.netlify.app"
+    ];
+
+    if (!origin || allowed.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  methods: "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
+  allowedHeaders:
+    "Origin,X-Requested-With,Content-Type,Accept,Authorization",
   credentials: true
 };
 
-
 app.use(cors(corsOptions));
+app.options("*", cors(corsOptions)); 
 app.use(express.json());
 
 
