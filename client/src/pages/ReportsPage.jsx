@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Card from "../components/Card";
 
-//const API_BASE = "http://localhost:5000/api";
-var API_URL = import.meta.env.VITE_API_BASE_URL + "/api/reports";
+var API_BASE = import.meta.env.VITE_API_BASE_URL + "/api";
 
 function formatCurrency(v) {
   if (!v) return "₹0";

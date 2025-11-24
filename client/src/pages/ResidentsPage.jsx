@@ -2,8 +2,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Card from "../components/Card";
 
-//var API_BASE = "http://localhost:5000";
-var API_URL = import.meta.env.VITE_API_BASE_URL + "/api/residents";
+var API_BASE = import.meta.env.VITE_API_BASE_URL;
+
+
 
 function StatusBadge(props) {
   var v = props.value || "";
@@ -44,7 +45,7 @@ export default function ResidentsPage() {
       try {
         setLoading(true);
         setError("");
-        var res = await fetch(API_URL + "/api/residents");
+        var res = await fetch(API_BASE + "/api/residents");
         var json = await res.json();
         if (!json.ok) {
           setError(json.error || "Failed to load residents");
@@ -125,7 +126,8 @@ export default function ResidentsPage() {
 
     try {
       if (formMode === "add") {
-        var resAdd = await fetch(API_URL + "/api/residents", {
+        var resAdd = await fetch(API_BASE + "/api/residents", {
+
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -149,7 +151,8 @@ export default function ResidentsPage() {
       } else {
         var id = formData._id;
 
-        var resEdit = await fetch(API_URL + "/api/residents/" + id, {
+       var resEdit = await fetch(API_BASE + "/api/residents/" + id, {
+
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -188,7 +191,8 @@ export default function ResidentsPage() {
     if (!window.confirm("Delete resident " + row.name + "?")) return;
 
     try {
-      var res = await fetch(API_URL + "/api/residents/" + row._id, {
+      var res = await fetch(API_BASE + "/api/residents/" + row._id, {
+
         method: "DELETE",
       });
       var json = await res.json();

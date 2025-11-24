@@ -48,8 +48,9 @@ export default function DashboardPage() {
         if (!billRes.ok) throw new Error("Billing API error");
 
         setRooms(roomsRes.rooms || []);
-        setResidents(resRes.residents || []);
-        setBills(billRes.bills || []); 
+setResidents(resRes.residents || []);
+setBills(billRes.payments || []);  
+
       })
       .catch(function (err) {
        // console.error("Dashboard load error:", err);
