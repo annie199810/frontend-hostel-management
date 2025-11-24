@@ -1,4 +1,5 @@
 
+
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
@@ -12,18 +13,21 @@ const User = require("./models/User");
 
 const app = express();
 
-
 const corsOptions = {
   origin: [
     "http://localhost:5173",
-    "https://hostelmanagementann.netlify.app",   
+    "https://hostelmanagementann.netlify.app"
   ],
-  methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
-  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type"],
+  credentials: true
 };
+
 
 app.use(cors(corsOptions));
 app.use(express.json());
+
+
 
 
 mongoose
@@ -36,6 +40,7 @@ mongoose
   });
 
 
+
 app.get("/api/users", async function (req, res) {
   try {
     var data = await User.find().sort({ createdAt: -1 });
@@ -45,6 +50,7 @@ app.get("/api/users", async function (req, res) {
     res.status(500).json({ ok: false, error: "Failed to load users" });
   }
 });
+
 
 app.post("/api/users", async function (req, res) {
   try {
@@ -56,9 +62,10 @@ app.post("/api/users", async function (req, res) {
     var status = body.status || "Active";
 
     if (!name || !email || !password) {
-      return res
-        .status(400)
-        .json({ ok: false, error: "Name, email and password are required" });
+      return res.status(400).json({
+        ok: false,
+        error: "Name, email and password are required",
+      });
     }
 
     var user = await User.create({
@@ -74,19 +81,22 @@ app.post("/api/users", async function (req, res) {
     console.error("Error creating user:", err);
 
     if (err && err.code === 11000) {
-      return res.status(409).json({ ok: false, error: "Email already exists" });
+      return res
+        .status(409)
+        .json({ ok: false, error: "Email already exists" });
     }
 
     res.status(500).json({ ok: false, error: "Failed to create user" });
   }
 });
 
+
 app.put("/api/users/:id", async function (req, res) {
   try {
     var id = req.params.id;
     var body = req.body || {};
-
     var updates = {};
+
     if (body.name != null) updates.name = body.name;
     if (body.email != null) updates.email = body.email;
     if (body.role != null) updates.role = body.role;
@@ -94,6 +104,7 @@ app.put("/api/users/:id", async function (req, res) {
     if (body.password) updates.password = body.password;
 
     var user = await User.findByIdAndUpdate(id, updates, { new: true });
+
     if (!user) {
       return res.status(404).json({ ok: false, error: "User not found" });
     }
@@ -103,18 +114,21 @@ app.put("/api/users/:id", async function (req, res) {
     console.error("Error updating user:", err);
 
     if (err && err.code === 11000) {
-      return res.status(409).json({ ok: false, error: "Email already exists" });
+      return res
+        .status(409)
+        .json({ ok: false, error: "Email already exists" });
     }
 
     res.status(500).json({ ok: false, error: "Failed to update user" });
   }
 });
 
+
 app.delete("/api/users/:id", async function (req, res) {
   try {
     var id = req.params.id;
-
     var deleted = await User.findByIdAndDelete(id);
+
     if (!deleted) {
       return res.status(404).json({ ok: false, error: "User not found" });
     }
@@ -125,6 +139,7 @@ app.delete("/api/users/:id", async function (req, res) {
     res.status(500).json({ ok: false, error: "Failed to delete user" });
   }
 });
+
 
 
 app.get("/api/billing", async function (req, res) {
@@ -138,6 +153,7 @@ app.get("/api/billing", async function (req, res) {
       .json({ ok: false, error: "Failed to load billing records" });
   }
 });
+
 
 app.post("/api/billing", async function (req, res) {
   try {
@@ -175,6 +191,7 @@ app.post("/api/billing", async function (req, res) {
 });
 
 
+
 app.get("/api/maintenance", async function (req, res) {
   try {
     var data = await Maintenance.find().sort({ createdAt: -1 });
@@ -186,6 +203,7 @@ app.get("/api/maintenance", async function (req, res) {
       .json({ ok: false, error: "Failed to load maintenance requests" });
   }
 });
+
 
 app.post("/api/maintenance", async function (req, res) {
   try {
@@ -220,6 +238,7 @@ app.post("/api/maintenance", async function (req, res) {
 });
 
 
+
 app.get("/api/residents", async function (req, res) {
   try {
     var data = await Resident.find().sort({ createdAt: -1 });
@@ -230,6 +249,7 @@ app.get("/api/residents", async function (req, res) {
   }
 });
 
+
 app.post("/api/residents", async function (req, res) {
   try {
     var body = req.body || {};
@@ -237,8 +257,7 @@ app.post("/api/residents", async function (req, res) {
     var roomNumber = body.roomNumber;
     var phone = body.phone;
     var status = body.status || "active";
-    var checkIn =
-      body.checkIn || new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    var checkIn = body.checkIn || new Date().toISOString().slice(0, 10);
 
     if (!name) {
       return res.status(400).json({ ok: false, error: "Name is required" });
@@ -258,6 +277,7 @@ app.post("/api/residents", async function (req, res) {
     res.status(500).json({ ok: false, error: "Failed to create resident" });
   }
 });
+
 
 app.put("/api/residents/:id", async function (req, res) {
   try {
@@ -280,11 +300,13 @@ app.put("/api/residents/:id", async function (req, res) {
   }
 });
 
+
 app.delete("/api/residents/:id", async function (req, res) {
   try {
     var id = req.params.id;
 
     var removed = await Resident.findByIdAndDelete(id);
+
     if (!removed) {
       return res.status(404).json({ ok: false, error: "Resident not found" });
     }
@@ -297,6 +319,7 @@ app.delete("/api/residents/:id", async function (req, res) {
 });
 
 
+
 app.get("/api/rooms", async function (req, res) {
   try {
     var data = await Room.find().sort({ number: 1 });
@@ -306,6 +329,7 @@ app.get("/api/rooms", async function (req, res) {
     res.status(500).json({ ok: false, error: "Failed to load rooms" });
   }
 });
+
 
 app.post("/api/rooms", async function (req, res) {
   try {
@@ -335,6 +359,7 @@ app.post("/api/rooms", async function (req, res) {
     res.status(500).json({ ok: false, error: "Failed to create room" });
   }
 });
+
 
 app.post("/api/rooms/:id/assign", async function (req, res) {
   try {
@@ -370,6 +395,7 @@ app.post("/api/rooms/:id/assign", async function (req, res) {
   }
 });
 
+
 app.post("/api/rooms/:id/checkout", async function (req, res) {
   try {
     var id = req.params.id;
@@ -392,9 +418,13 @@ app.post("/api/rooms/:id/checkout", async function (req, res) {
 });
 
 
+
+
 app.get("/", function (req, res) {
   res.send("Hostel Management API with MongoDB is running");
 });
+
+
 
 
 var PORT = process.env.PORT || 5000;
