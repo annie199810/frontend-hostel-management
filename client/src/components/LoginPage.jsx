@@ -7,8 +7,8 @@ export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState("admin@hostel.com");
-  const [password, setPassword] = useState("admin123");
+  const [email, setEmail] = useState("test@hostel.com");
+  const [password, setPassword] = useState("test123");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -18,9 +18,9 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login({ email, password });
-      navigate("/");
+      navigate("/", { replace: true });
     } catch (err) {
-      setError(err?.body?.error || err.message || "Login failed");
+      setError(err?.error || err?.message || "Login failed");
     } finally {
       setLoading(false);
     }
@@ -29,12 +29,8 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#083b9a] via-[#0e57c7] to-[#275fd6] p-6">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
-        <h1 className="text-3xl font-extrabold text-slate-900 text-center">
-          Hostel Manager
-        </h1>
-        <p className="text-center text-sm text-slate-500 mb-6">
-          Management System
-        </p>
+        <h1 className="text-3xl font-extrabold text-slate-900 text-center">Hostel Manager</h1>
+        <p className="text-center text-sm text-slate-500 mb-6">Management System</p>
 
         <form onSubmit={handle} className="space-y-4">
           <div>
@@ -64,32 +60,23 @@ export default function LoginPage() {
               <input type="checkbox" />
               Remember me
             </label>
-            <Link to="/forgot" className="text-blue-600 hover:underline">
-              Forgot password?
-            </Link>
+            <Link to="/forgot" className="text-blue-600 hover:underline">Forgot password?</Link>
           </div>
 
           {error && <div className="text-sm text-red-600">{error}</div>}
 
-          <button
-            type="submit"
-            className="w-full bg-[#1976ff] text-white py-3 rounded-lg font-semibold shadow"
-            disabled={loading}
-          >
+          <button type="submit" className="w-full bg-[#1976ff] text-white py-3 rounded-lg font-semibold shadow" disabled={loading}>
             {loading ? "Signing..." : "Sign In"}
           </button>
         </form>
 
         <div className="mt-6 border-t pt-4 text-center text-sm text-slate-500">
-          Don't have an account?{" "}
-          <Link to="/register" className="text-blue-600 hover:underline">
-            Register here
-          </Link>
+          Don't have an account? <Link to="/register" className="text-blue-600 hover:underline">Register here</Link>
         </div>
 
         <div className="mt-6 text-center text-xs text-slate-400">
           <div>Demo Credentials:</div>
-          <div>Email: admin@hostel.com | Password: admin123</div>
+          <div>Email: test@hostel.com | Password: test123</div>
         </div>
       </div>
     </div>

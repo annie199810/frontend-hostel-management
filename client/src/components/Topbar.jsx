@@ -1,9 +1,15 @@
-
 import React from "react";
 import { useAuth } from "../auth/AuthProvider";
+import { useNavigate } from "react-router-dom";
 
 export default function Topbar({ title, onToggle }) {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  function handleLogout() {
+    logout();           
+    navigate("/login"); 
+  }
 
   return (
     <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-6">
@@ -47,7 +53,7 @@ export default function Topbar({ title, onToggle }) {
           </div>
 
           <button
-            onClick={() => logout()}
+            onClick={handleLogout}
             className="ml-3 text-sm text-red-600 hover:underline"
             title="Logout"
           >

@@ -1,17 +1,33 @@
+
 const API = import.meta.env.VITE_API_BASE_URL;
 
-export const login = async (email, password) => {
-  try {
-    const res = await fetch(`${API}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
+export async function apiLogin(email, password) {
+  const res = await fetch(`${API}/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw data;
+  return data; 
+}
 
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || 'Login failed');
-    return data;
-  } catch (err) {
-    throw err;
-  }
-};
+export async function apiRegister(name, email, password) {
+  const res = await fetch(`${API}/api/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, email, password }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw data;
+  return data;
+}
+
+export async function apiMe(token) {
+  const res = await fetch(`${API}/api/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json();
+  if (!res.ok) throw data;
+  return data; 
+}
