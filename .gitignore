@@ -1,9 +1,16 @@
+<<<<<<< HEAD
 # === Node / JS general ===
 node_modules/
+=======
+# Logs
+logs
+*.log
+>>>>>>> a028fed (Frontend code added)
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+<<<<<<< HEAD
 package-lock.json
 
 # === Build output ===
@@ -23,3 +30,22 @@ server/.env
 .vscode/
 .DS_Store
 Thumbs.db
+=======
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+>>>>>>> a028fed (Frontend code added)
