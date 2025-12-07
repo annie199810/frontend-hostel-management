@@ -34,7 +34,7 @@ export default function StatusModal({ open, type, message, onClose }) {
             isSuccess ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"
           }`}
         >
-          {isSuccess ? "Continue" : "Try Again"}
+          {isSuccess ? "OK" : "Try Again"}
         </button>
       </div>
     </div>
