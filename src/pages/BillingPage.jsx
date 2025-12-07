@@ -1,10 +1,14 @@
+
 import React, { useEffect, useMemo, useState } from "react";
 import Card from "../components/Card";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
 
-function pad(n) { return String(n).padStart(2, "0"); }
+function pad(n) {
+  return String(n).padStart(2, "0");
+}
+
 function invoiceFallback() {
   const now = new Date();
   const y = String(now.getFullYear()).slice(-2);
@@ -16,23 +20,45 @@ function invoiceFallback() {
   const rand = Math.floor(1000 + Math.random() * 9000);
   return `INV-${y}${m}${d}-${hh}${mm}${ss}-${rand}`;
 }
+
 function addDaysISO(days) {
   const d = new Date();
   d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
 }
+
 function formatCurrency(amount) {
   if (amount == null || amount === "") return "₹0";
   return "₹" + Number(amount).toLocaleString("en-IN");
 }
 
+function formatDateForInput(iso) {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toISOString().slice(0, 10);
+  } catch {
+    return iso;
+  }
+}
+
 
 function StatusChip({ status }) {
-  const base = "inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold";
-  if (status === "Paid") return <span className={base + " bg-emerald-50 text-emerald-700"}>✔ Paid</span>;
-  if (status === "Pending") return <span className={base + " bg-amber-50 text-amber-700"}>⏳ Pending</span>;
-  return <span className={base + " bg-rose-50 text-rose-700"}>⚠ Overdue</span>;
+  const base =
+    "inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold";
+  if (status === "Paid")
+    return (
+      <span className={base + " bg-emerald-50 text-emerald-700"}>✔ Paid</span>
+    );
+  if (status === "Pending")
+    return (
+      <span className={base + " bg-amber-50 text-amber-700"}>⏳ Pending</span>
+    );
+  return (
+    <span className={base + " bg-rose-50 text-rose-700"}>⚠ Overdue</span>
+  );
 }
+
+
 
 export default function BillingPage() {
   const [payments, setPayments] = useState([]);
@@ -42,9 +68,11 @@ export default function BillingPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
+  
   const [showAdd, setShowAdd] = useState(false);
   const [showInvoice, setShowInvoice] = useState(false);
   const [showView, setShowView] = useState(false);
+
 
   const [addForm, setAddForm] = useState({
     residentName: "",
@@ -58,22 +86,22 @@ export default function BillingPage() {
   });
 
   const [invoiceData, setInvoiceData] = useState({
-    invoiceNo: "",
+    invoiceNo: invoiceFallback(),
     residentName: "",
     roomNumber: "",
     month: "",
     amount: "",
+    dueDate: addDaysISO(30),
     notes: "Thank you for your payment.",
   });
 
   const [viewPayment, setViewPayment] = useState(null);
 
-  
+
   const [payNowOpen, setPayNowOpen] = useState(false);
   const [payNowTarget, setPayNowTarget] = useState(null);
   const [payNowProcessing, setPayNowProcessing] = useState(false);
 
-  
   const [paymentMethod, setPaymentMethod] = useState("Card");
   const [cardNumber, setCardNumber] = useState("");
   const [expiry, setExpiry] = useState("");
@@ -81,9 +109,10 @@ export default function BillingPage() {
   const [cardName, setCardName] = useState("");
   const [authorize, setAuthorize] = useState(false);
 
-  
+
   useEffect(() => {
     let mounted = true;
+
     async function load() {
       setLoading(true);
       setError("");
@@ -106,11 +135,12 @@ export default function BillingPage() {
         if (mounted) setLoading(false);
       }
     }
+
     load();
     return () => (mounted = false);
   }, []);
 
-
+  
   const stats = useMemo(() => {
     let total = payments.length;
     let totalAmount = 0;
@@ -127,7 +157,7 @@ export default function BillingPage() {
     return { total, totalAmount, paid, pending };
   }, [payments]);
 
- 
+  
   const filtered = useMemo(() => {
     const q = (search || "").toLowerCase();
     return payments.filter((p) => {
@@ -143,7 +173,7 @@ export default function BillingPage() {
     });
   }, [payments, search, statusFilter]);
 
-  
+ 
   async function markAsPaid(invoiceId) {
     if (!invoiceId) {
       throw new Error("Invoice id missing");
@@ -156,7 +186,7 @@ export default function BillingPage() {
       const res = await fetch(url, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ method: "Manual" })
+        body: JSON.stringify({ method: "Manual" }),
       });
 
       const text = await res.text().catch(() => "");
@@ -168,7 +198,9 @@ export default function BillingPage() {
       }
 
       if (!res.ok || (data && data.ok === false)) {
-        const errMsg = (data && data.error) || `PATCH ${url} -> ${res.status} ${res.statusText} ${text}`;
+        const errMsg =
+          (data && data.error) ||
+          `PATCH ${url} -> ${res.status} ${res.statusText} ${text}`;
         throw new Error(errMsg);
       }
 
@@ -179,7 +211,7 @@ export default function BillingPage() {
     }
   }
 
-  
+ 
   function openPayNow(p) {
     setPayNowTarget(p);
     setPayNowOpen(true);
@@ -195,7 +227,6 @@ export default function BillingPage() {
     if (!payNowTarget) return;
     const method = methodOverride || paymentMethod || "Mock";
 
-    
     if (method === "Card") {
       if (!authorize) {
         alert("Please authorize this payment (check the box).");
@@ -221,7 +252,7 @@ export default function BillingPage() {
     };
 
     try {
-   
+      
       try {
         const r1 = await fetch(`${API_BASE}/api/payments`, {
           method: "POST",
@@ -232,24 +263,28 @@ export default function BillingPage() {
           try {
             const json1 = await r1.json();
             if (json1 && json1.ok) {
-              // ok
+              
             }
           } catch (_) {}
         }
       } catch (err) {
-        console.info("POST /api/payments failed (dev fallback):", err?.message || err);
+        console.info(
+          "POST /api/payments failed (dev fallback):",
+          err?.message || err
+        );
       }
 
       const updated = await markAsPaid(payNowTarget._id);
 
-     
       setPayments((prev) =>
         prev.map((p) =>
           p._id === payNowTarget._id
             ? {
                 ...p,
                 status: "Paid",
-                paidOn: (updated && updated.paidOn) || new Date().toISOString().slice(0, 10),
+                paidOn:
+                  (updated && updated.paidOn) ||
+                  new Date().toISOString().slice(0, 10),
               }
             : p
         )
@@ -278,7 +313,12 @@ export default function BillingPage() {
   async function submitAdd(e) {
     e.preventDefault();
 
-    if (!addForm.residentName || !addForm.roomNumber || !addForm.amount || !addForm.month) {
+    if (
+      !addForm.residentName ||
+      !addForm.roomNumber ||
+      !addForm.amount ||
+      !addForm.month
+    ) {
       alert("Fill required fields");
       return;
     }
@@ -290,7 +330,7 @@ export default function BillingPage() {
     };
 
     try {
-      const res = await fetch(`${API_BASE}/api/invoices`, {
+      const res = await fetch(`${API_BASE}/api/billing`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -298,18 +338,90 @@ export default function BillingPage() {
 
       const data = await res.json();
       if (!res.ok || !data.ok) {
-        alert("Error saving invoice");
+        alert("Error saving payment");
         return;
       }
 
-      const saved = data.invoice || payload;
+      const saved = data.payment || payload;
       saved.invoiceNo = saved.invoiceNo || invoiceFallback();
       saved._id = saved._id || Date.now();
 
       setPayments((prev) => [saved, ...prev]);
       setShowAdd(false);
+      setAddForm({
+        residentName: "",
+        roomNumber: "",
+        amount: "",
+        month: "",
+        dueDate: "",
+        status: "Pending",
+        method: "Cash",
+        notes: "",
+      });
     } catch (err) {
       console.error("submitAdd err", err);
+      alert("Network error");
+    }
+  }
+
+  
+  async function handleGenerateInvoice(e) {
+    e.preventDefault();
+
+    if (
+      !invoiceData.residentName ||
+      !invoiceData.roomNumber ||
+      !invoiceData.amount ||
+      !invoiceData.month
+    ) {
+      alert("Fill required fields");
+      return;
+    }
+
+    const payload = {
+      residentName: invoiceData.residentName,
+      roomNumber: invoiceData.roomNumber,
+      amount: Number(invoiceData.amount),
+      month: invoiceData.month,
+      dueDate: invoiceData.dueDate || addDaysISO(30),
+      notes: invoiceData.notes,
+      invoiceNo: invoiceData.invoiceNo || invoiceFallback(),
+      status: "Pending",
+      method: "Cash",
+    };
+
+    try {
+      const res = await fetch(`${API_BASE}/api/invoices`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.ok) {
+        alert("Error generating invoice");
+        return;
+      }
+
+      const saved = data.invoice || payload;
+      saved.invoiceNo = saved.invoiceNo || payload.invoiceNo;
+      saved._id = saved._id || Date.now();
+
+      setPayments((prev) => [saved, ...prev]);
+      alert("Invoice generated successfully");
+
+      setShowInvoice(false);
+      setInvoiceData({
+        invoiceNo: invoiceFallback(),
+        residentName: "",
+        roomNumber: "",
+        month: "",
+        amount: "",
+        dueDate: addDaysISO(30),
+        notes: "Thank you for your payment.",
+      });
+    } catch (err) {
+      console.error("handleGenerateInvoice err", err);
       alert("Network error");
     }
   }
@@ -320,45 +432,40 @@ export default function BillingPage() {
     setShowView(true);
   }
 
-  
-  function sendReminder(id) {
+  function sendReminder() {
     alert("Reminder sent to resident.");
   }
 
- 
-  function printInvoice() {
-    window.print();
-  }
-
-  function formatDateForInput(iso) {
-    if (!iso) return "";
-    try {
-      return new Date(iso).toISOString().slice(0, 10);
-    } catch {
-      return iso;
-    }
-  }
+  
 
   return (
     <main className="p-6 bg-gray-50 min-h-screen">
-      
+    
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-2xl font-semibold">Billing & Payments</h1>
-          <p className="text-sm text-gray-500">Track room fees & invoices</p>
+          <p className="text-sm text-gray-500">
+            Track room fees & invoices
+          </p>
         </div>
 
         <div className="flex items-center gap-3">
-          <button onClick={() => setShowInvoice(true)} className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded shadow">
+          <button
+            onClick={() => setShowInvoice(true)}
+            className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded shadow"
+          >
             Generate Invoice
           </button>
-          <button onClick={() => setShowAdd(true)} className="px-4 py-2 border rounded">
+          <button
+            onClick={() => setShowAdd(true)}
+            className="px-4 py-2 border rounded bg-white hover:bg-gray-50"
+          >
             Add
           </button>
         </div>
       </div>
 
-      
+      {/* stats */}
       <section className="grid grid-cols-1 sm:grid-cols-4 gap-4 mt-6">
         <Card>
           <div className="text-xs text-gray-500">Total Payments</div>
@@ -367,17 +474,23 @@ export default function BillingPage() {
 
         <Card>
           <div className="text-xs text-gray-500">Total Amount</div>
-          <div className="text-2xl font-bold text-purple-600">{formatCurrency(stats.totalAmount)}</div>
+          <div className="text-2xl font-bold text-purple-600">
+            {formatCurrency(stats.totalAmount)}
+          </div>
         </Card>
 
         <Card>
           <div className="text-xs text-gray-500">Paid</div>
-          <div className="text-2xl font-bold text-green-600">{formatCurrency(stats.paid)}</div>
+          <div className="text-2xl font-bold text-green-600">
+            {formatCurrency(stats.paid)}
+          </div>
         </Card>
 
         <Card>
           <div className="text-xs text-gray-500">Pending</div>
-          <div className="text-2xl font-bold text-amber-600">{formatCurrency(stats.pending)}</div>
+          <div className="text-2xl font-bold text-amber-600">
+            {formatCurrency(stats.pending)}
+          </div>
         </Card>
       </section>
 
@@ -405,8 +518,12 @@ export default function BillingPage() {
           </select>
         </div>
 
-        {loading && <p className="text-center py-6 text-gray-500">Loading…</p>}
-        {error && <p className="text-center py-6 text-red-500">{error}</p>}
+        {loading && (
+          <p className="text-center py-6 text-gray-500">Loading…</p>
+        )}
+        {error && (
+          <p className="text-center py-6 text-red-500">{error}</p>
+        )}
 
         {!loading && !error && (
           <div className="overflow-x-auto">
@@ -426,21 +543,37 @@ export default function BillingPage() {
               <tbody>
                 {filtered.map((p) => (
                   <tr key={p._id} className="border-b">
-                    <td className="px-3 py-3 max-w-[220px]">{p.invoiceNo}</td>
+                    <td className="px-3 py-3 max-w-[220px]">
+                      {p.invoiceNo}
+                    </td>
                     <td className="px-3 py-3">{p.residentName}</td>
                     <td className="px-3 py-3">{p.roomNumber}</td>
-                    <td className="px-3 py-3">{formatCurrency(p.amount)}</td>
-                    <td className="px-3 py-3">{p.dueDate ? new Date(p.dueDate).toLocaleDateString() : "-"}</td>
-                    <td className="px-3 py-3"><StatusChip status={p.status} /></td>
+                    <td className="px-3 py-3">
+                      {formatCurrency(p.amount)}
+                    </td>
+                    <td className="px-3 py-3">
+                      {p.dueDate
+                        ? new Date(p.dueDate).toLocaleDateString()
+                        : "-"}
+                    </td>
+                    <td className="px-3 py-3">
+                      <StatusChip status={p.status} />
+                    </td>
 
                     <td className="px-3 py-3 flex gap-2">
-                      <button onClick={() => openView(p)} className="px-2 py-1 text-xs bg-indigo-50 text-indigo-600 rounded">
+                      <button
+                        onClick={() => openView(p)}
+                        className="px-2 py-1 text-xs bg-indigo-50 text-indigo-600 rounded"
+                      >
                         View
                       </button>
 
                       {p.status !== "Paid" && (
                         <>
-                          <button onClick={() => openPayNow(p)} className="px-2 py-1 text-xs bg-green-600 text-white rounded">
+                          <button
+                            onClick={() => openPayNow(p)}
+                            className="px-2 py-1 text-xs bg-green-600 text-white rounded"
+                          >
                             Pay Now
                           </button>
                           <button
@@ -455,14 +588,19 @@ export default function BillingPage() {
                                           status: "Paid",
                                           paidOn:
                                             (upd && upd.paidOn) ||
-                                            new Date().toISOString().slice(0, 10),
+                                            new Date()
+                                              .toISOString()
+                                              .slice(0, 10),
                                         }
                                       : x
                                   )
                                 );
                                 alert("Marked as Paid");
                               } catch (err) {
-                                alert("Error updating payment: " + (err.message || ""));
+                                alert(
+                                  "Error updating payment: " +
+                                    (err.message || "")
+                                );
                               }
                             }}
                             className="px-2 py-1 text-xs bg-emerald-700 text-white rounded"
@@ -484,7 +622,10 @@ export default function BillingPage() {
 
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan="7" className="py-6 text-center text-gray-500">
+                    <td
+                      colSpan="7"
+                      className="py-6 text-center text-gray-500"
+                    >
                       No records found
                     </td>
                   </tr>
@@ -495,19 +636,24 @@ export default function BillingPage() {
         )}
       </Card>
 
-   
+      
       {payNowOpen && payNowTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 
           <div className="relative z-10 bg-white rounded-2xl shadow-[0_30px_60px_rgba(2,6,23,0.35)] w-full max-w-3xl mx-auto border border-slate-100 overflow-hidden">
-           
+          
             <div
               className="flex items-start justify-between p-5 border-b"
-              style={{ background: "linear-gradient(90deg, #F8FAFF 0%, #F2FBFF 100%)" }}
+              style={{
+                background:
+                  "linear-gradient(90deg, #F8FAFF 0%, #F2FBFF 100%)",
+              }}
             >
               <div>
-                <h3 className="text-lg font-semibold text-slate-800">Process Payment</h3>
+                <h3 className="text-lg font-semibold text-slate-800">
+                  Process Payment
+                </h3>
                 <p className="text-sm text-slate-500">
                   Review payment details and complete the transaction.
                 </p>
@@ -537,12 +683,16 @@ export default function BillingPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start text-sm">
                 <div>
                   <div className="text-xs text-slate-500">Invoice</div>
-                  <div className="font-semibold text-slate-800">{payNowTarget.invoiceNo}</div>
+                  <div className="font-semibold text-slate-800">
+                    {payNowTarget.invoiceNo}
+                  </div>
                 </div>
 
                 <div>
                   <div className="text-xs text-slate-500">Resident</div>
-                  <div className="font-semibold text-slate-800">{payNowTarget.residentName}</div>
+                  <div className="font-semibold text-slate-800">
+                    {payNowTarget.residentName}
+                  </div>
                 </div>
 
                 <div className="text-right">
@@ -574,7 +724,8 @@ export default function BillingPage() {
                     aria-checked={paymentMethod === "Card"}
                     tabIndex={0}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") setPaymentMethod("Card");
+                      if (e.key === "Enter" || e.key === " ")
+                        setPaymentMethod("Card");
                     }}
                   >
                     <input
@@ -590,7 +741,9 @@ export default function BillingPage() {
                         <span className="text-xl">💳</span>
                       </div>
                       <div>
-                        <div className="text-slate-800">Credit / Debit Card</div>
+                        <div className="text-slate-800">
+                          Credit / Debit Card
+                        </div>
                         <div className="text-xs text-slate-500">
                           Visa, MasterCard, Rupay
                         </div>
@@ -598,7 +751,7 @@ export default function BillingPage() {
                     </div>
                   </label>
 
-              
+                 
                   <label
                     className={`flex items-center gap-3 p-3 rounded-lg ${
                       paymentMethod === "PayPal"
@@ -609,7 +762,8 @@ export default function BillingPage() {
                     aria-checked={paymentMethod === "PayPal"}
                     tabIndex={0}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") setPaymentMethod("PayPal");
+                      if (e.key === "Enter" || e.key === " ")
+                        setPaymentMethod("PayPal");
                     }}
                   >
                     <input
@@ -633,7 +787,7 @@ export default function BillingPage() {
                     </div>
                   </label>
 
-                 
+                  
                   <label
                     className={`flex items-center gap-3 p-3 rounded-lg ${
                       paymentMethod === "Cash"
@@ -644,7 +798,8 @@ export default function BillingPage() {
                     aria-checked={paymentMethod === "Cash"}
                     tabIndex={0}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") setPaymentMethod("Cash");
+                      if (e.key === "Enter" || e.key === " ")
+                        setPaymentMethod("Cash");
                     }}
                   >
                     <input
@@ -663,7 +818,7 @@ export default function BillingPage() {
                     </div>
                   </label>
 
-                 
+                  
                   <label
                     className={`flex items-center gap-3 p-3 rounded-lg ${
                       paymentMethod === "UPI"
@@ -674,7 +829,8 @@ export default function BillingPage() {
                     aria-checked={paymentMethod === "UPI"}
                     tabIndex={0}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") setPaymentMethod("UPI");
+                      if (e.key === "Enter" || e.key === " ")
+                        setPaymentMethod("UPI");
                     }}
                   >
                     <input
@@ -689,7 +845,6 @@ export default function BillingPage() {
                   </label>
                 </div>
 
-               
                 <div className="mt-4">
                   {paymentMethod === "Card" && (
                     <div className="space-y-3">
@@ -731,7 +886,10 @@ export default function BillingPage() {
                         />
                         <div className="text-slate-600">
                           I authorize this payment and agree to the{" "}
-                          <span className="underline">terms and conditions</span>.
+                          <span className="underline">
+                            terms and conditions
+                          </span>
+                          .
                         </div>
                       </label>
                     </div>
@@ -741,7 +899,9 @@ export default function BillingPage() {
                     <div className="space-y-3">
                       <div className="p-3 border rounded text-sm text-slate-700 bg-white">
                         <div className="text-xs text-slate-500">UPI ID</div>
-                        <div className="font-medium">your-upi-id@upi</div>
+                        <div className="font-medium">
+                          your-upi-id@upi
+                        </div>
                       </div>
 
                       <div className="flex items-center gap-4 mt-2">
@@ -760,9 +920,12 @@ export default function BillingPage() {
                         </div>
 
                         <div className="text-sm text-slate-600">
-                          <div className="font-medium mb-1">Scan & Pay</div>
+                          <div className="font-medium mb-1">
+                            Scan & Pay
+                          </div>
                           <div className="text-xs">
-                            Scan the QR using any UPI app (Google Pay, PhonePe, Paytm)
+                            Scan the QR using any UPI app (Google Pay,
+                            PhonePe, Paytm)
                           </div>
                           <div className="mt-2 font-medium text-slate-800">
                             your-upi-id@upi
@@ -786,7 +949,7 @@ export default function BillingPage() {
                 </div>
               </div>
 
-              
+            
               <aside className="order-first lg:order-last">
                 <div className="border rounded-lg p-4 shadow-sm bg-white w-full">
                   <div className="text-xs text-slate-500">Invoice</div>
@@ -795,7 +958,9 @@ export default function BillingPage() {
                   </div>
 
                   <div className="text-xs text-slate-500">Resident</div>
-                  <div className="font-medium mb-3">{payNowTarget.residentName}</div>
+                  <div className="font-medium mb-3">
+                    {payNowTarget.residentName}
+                  </div>
 
                   <div className="text-xs text-slate-500">Amount</div>
                   <div className="text-2xl font-bold text-sky-800 mb-4">
@@ -820,7 +985,8 @@ export default function BillingPage() {
                   </table>
 
                   <div className="mt-4 text-xs text-slate-500">
-                    Paid via selected method will update the invoice status.
+                    Paid via selected method will update the invoice
+                    status.
                   </div>
                 </div>
               </aside>
@@ -859,15 +1025,13 @@ export default function BillingPage() {
         </div>
       )}
 
-      
+     
       {showView && viewPayment && (
         <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
-         
           <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" />
 
-         
           <div className="relative z-10 w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
-            
+         
             <div className="flex items-start justify-between px-5 pt-4 pb-3 border-b bg-slate-50">
               <div>
                 <p className="text-[11px] font-semibold tracking-wide text-slate-500 uppercase">
@@ -893,9 +1057,8 @@ export default function BillingPage() {
               </div>
             </div>
 
-            
+          
             <div className="px-5 py-4 space-y-4 text-sm">
-             
               <div className="grid grid-cols-2 gap-x-6 gap-y-3">
                 <div>
                   <p className="text-[11px] uppercase tracking-wide text-slate-500">
@@ -930,7 +1093,9 @@ export default function BillingPage() {
                   </p>
                   <p className="font-medium text-slate-800">
                     {viewPayment.dueDate
-                      ? new Date(viewPayment.dueDate).toLocaleDateString()
+                      ? new Date(
+                          viewPayment.dueDate
+                        ).toLocaleDateString()
                       : "-"}
                   </p>
                 </div>
@@ -954,7 +1119,6 @@ export default function BillingPage() {
                 </div>
               </div>
 
-             
               <div className="border rounded-xl px-3 py-2.5 bg-slate-50">
                 <p className="text-[11px] uppercase tracking-wide text-slate-500 mb-1.5">
                   Notes
@@ -967,12 +1131,14 @@ export default function BillingPage() {
               </div>
             </div>
 
-            
+          
             <div className="flex items-center justify-between px-5 py-3 border-t bg-slate-50/80">
               <p className="text-[11px] text-slate-500">
                 Created on{" "}
                 {viewPayment.createdAt
-                  ? new Date(viewPayment.createdAt).toLocaleDateString()
+                  ? new Date(
+                      viewPayment.createdAt
+                    ).toLocaleDateString()
                   : "-"}
               </p>
 
@@ -983,6 +1149,326 @@ export default function BillingPage() {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      
+      {showAdd && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40" />
+          <div className="relative z-10 w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-100 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">
+                Add Payment / Invoice
+              </h2>
+              <button
+                onClick={() => setShowAdd(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={submitAdd} className="space-y-3 text-sm">
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">
+                  Resident Name
+                </label>
+                <input
+                  className="w-full border rounded px-3 py-2"
+                  value={addForm.residentName}
+                  onChange={(e) =>
+                    setAddForm({
+                      ...addForm,
+                      residentName: e.target.value,
+                    })
+                  }
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">
+                    Room Number
+                  </label>
+                  <input
+                    className="w-full border rounded px-3 py-2"
+                    value={addForm.roomNumber}
+                    onChange={(e) =>
+                      setAddForm({
+                        ...addForm,
+                        roomNumber: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">
+                    Amount
+                  </label>
+                  <input
+                    className="w-full border rounded px-3 py-2"
+                    value={addForm.amount}
+                    onChange={(e) =>
+                      setAddForm({
+                        ...addForm,
+                        amount: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">
+                    Month
+                  </label>
+                  <input
+                    className="w-full border rounded px-3 py-2"
+                    placeholder="Dec 2025"
+                    value={addForm.month}
+                    onChange={(e) =>
+                      setAddForm({
+                        ...addForm,
+                        month: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">
+                    Due Date
+                  </label>
+                  <input
+                    type="date"
+                    className="w-full border rounded px-3 py-2"
+                    value={formatDateForInput(addForm.dueDate)}
+                    onChange={(e) =>
+                      setAddForm({
+                        ...addForm,
+                        dueDate: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">
+                  Notes
+                </label>
+                <textarea
+                  className="w-full border rounded px-3 py-2"
+                  rows={2}
+                  value={addForm.notes}
+                  onChange={(e) =>
+                    setAddForm({
+                      ...addForm,
+                      notes: e.target.value,
+                    })
+                  }
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAdd(false)}
+                  className="px-3 py-1.5 border rounded text-slate-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-3 py-1.5 bg-indigo-600 text-white rounded"
+                >
+                  Save
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      
+      {showInvoice && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40" />
+          <div className="relative z-10 w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-100 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold">
+                  Generate Invoice
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Create a formal invoice for a resident.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowInvoice(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form
+              onSubmit={handleGenerateInvoice}
+              className="space-y-3 text-sm"
+            >
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">
+                  Invoice Number
+                </label>
+                <input
+                  className="w-full border rounded px-3 py-2 bg-slate-50"
+                  value={invoiceData.invoiceNo}
+                  onChange={(e) =>
+                    setInvoiceData({
+                      ...invoiceData,
+                      invoiceNo: e.target.value,
+                    })
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">
+                  Resident Name
+                </label>
+                <input
+                  className="w-full border rounded px-3 py-2"
+                  value={invoiceData.residentName}
+                  onChange={(e) =>
+                    setInvoiceData({
+                      ...invoiceData,
+                      residentName: e.target.value,
+                    })
+                  }
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">
+                    Room Number
+                  </label>
+                  <input
+                    className="w-full border rounded px-3 py-2"
+                    value={invoiceData.roomNumber}
+                    onChange={(e) =>
+                      setInvoiceData({
+                        ...invoiceData,
+                        roomNumber: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">
+                    Amount
+                  </label>
+                  <input
+                    className="w-full border rounded px-3 py-2"
+                    value={invoiceData.amount}
+                    onChange={(e) =>
+                      setInvoiceData({
+                        ...invoiceData,
+                        amount: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">
+                    Month
+                  </label>
+                  <input
+                    className="w-full border rounded px-3 py-2"
+                    placeholder="Dec 2025"
+                    value={invoiceData.month}
+                    onChange={(e) =>
+                      setInvoiceData({
+                        ...invoiceData,
+                        month: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">
+                    Due Date
+                  </label>
+                  <input
+                    type="date"
+                    className="w-full border rounded px-3 py-2"
+                    value={formatDateForInput(invoiceData.dueDate)}
+                    onChange={(e) =>
+                      setInvoiceData({
+                        ...invoiceData,
+                        dueDate: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">
+                  Notes on Invoice
+                </label>
+                <textarea
+                  className="w-full border rounded px-3 py-2"
+                  rows={2}
+                  value={invoiceData.notes}
+                  onChange={(e) =>
+                    setInvoiceData({
+                      ...invoiceData,
+                      notes: e.target.value,
+                    })
+                  }
+                />
+              </div>
+
+              <div className="flex justify-between items-center pt-3">
+                <div className="text-xs text-slate-500">
+                  Preview total:{" "}
+                  <span className="font-semibold text-slate-800">
+                    {formatCurrency(invoiceData.amount || 0)}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInvoiceData({
+                        invoiceNo: invoiceFallback(),
+                        residentName: "",
+                        roomNumber: "",
+                        month: "",
+                        amount: "",
+                        dueDate: addDaysISO(30),
+                        notes: "Thank you for your payment.",
+                      });
+                    }}
+                    className="px-3 py-1.5 border rounded text-slate-700"
+                  >
+                    Reset
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-3 py-1.5 bg-indigo-600 text-white rounded"
+                  >
+                    Generate
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
         </div>
       )}
