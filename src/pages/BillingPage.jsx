@@ -89,7 +89,7 @@ export default function BillingPage() {
   const [cardName, setCardName] = useState("");
   const [authorize, setAuthorize] = useState(false);
 
- 
+  
   useEffect(() => {
     let mounted = true;
     async function load() {
@@ -135,7 +135,7 @@ export default function BillingPage() {
     return { total, totalAmount, paid, pending };
   }, [payments]);
 
-  
+ 
   const filtered = useMemo(() => {
     const q = (search || "").toLowerCase();
     return payments.filter((p) => {
@@ -221,7 +221,7 @@ export default function BillingPage() {
     };
 
     try {
-      
+   
       try {
         const r1 = await fetch(`${API_BASE}/api/payments`, {
           method: "POST",
@@ -271,7 +271,7 @@ export default function BillingPage() {
     }
   }
 
-  
+ 
   async function submitAdd(e) {
     e.preventDefault();
 
@@ -323,29 +323,7 @@ export default function BillingPage() {
     }
   }
 
- 
-  function openView(p) {
-    setViewPayment(p);
-    setShowView(true);
-  }
-
-  function sendReminder() {
-    alert("Reminder sent to resident.");
-  }
-
-  function printInvoice() {
-    window.print();
-  }
-
-  function formatDateForInput(iso) {
-    if (!iso) return "";
-    try {
-      return new Date(iso).toISOString().slice(0, 10);
-    } catch {
-      return iso;
-    }
-  }
-
+  
   async function handleGenerateInvoice(e) {
     e.preventDefault();
 
@@ -397,10 +375,33 @@ export default function BillingPage() {
     }
   }
 
+ 
+  function openView(p) {
+    setViewPayment(p);
+    setShowView(true);
+  }
+
+  function sendReminder() {
+    alert("Reminder sent to resident.");
+  }
+
+  function printInvoice() {
+    window.print();
+  }
+
+  function formatDateForInput(iso) {
+    if (!iso) return "";
+    try {
+      return new Date(iso).toISOString().slice(0, 10);
+    } catch {
+      return iso;
+    }
+  }
+
   
   return (
     <main className="p-6 bg-gray-50 min-h-screen">
-    
+     
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-2xl font-semibold">Billing & Payments</h1>
@@ -465,7 +466,7 @@ export default function BillingPage() {
         </Card>
       </section>
 
-      
+      {/* table */}
       <Card title="Payment History" className="mt-6">
         <div className="flex gap-3 mb-4">
           <input
@@ -604,6 +605,772 @@ export default function BillingPage() {
       </Card>
 
       
+      {payNowOpen && payNowTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="relative z-10 bg-white rounded-2xl shadow-[0_30px_60px_rgba(2,6,23,0.35)] w-full max-w-3xl mx-auto border border-slate-100 overflow-hidden">
+            
+            <div
+              className="flex items-start justify-between p-5 border-b"
+              style={{
+                background:
+                  "linear-gradient(90deg, #F8FAFF 0%, #F2FBFF 100%)",
+              }}
+            >
+              <div>
+                <h3 className="text-lg font-semibold text-slate-800">
+                  Process Payment
+                </h3>
+                <p className="text-sm text-slate-500">
+                  Review payment details and complete the transaction.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  if (!payNowProcessing) {
+                    setPayNowOpen(false);
+                    setPayNowTarget(null);
+                  }
+                }}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                ✕
+              </button>
+            </div>
+
+           
+            <div
+              className="p-4 border-b"
+              style={{
+                background:
+                  "linear-gradient(90deg, rgba(232,249,255,0.6) 0%, rgba(243,249,255,0.4) 100%)",
+              }}
+            >
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start text-sm">
+                <div>
+                  <div className="text-xs text-slate-500">Invoice</div>
+                  <div className="font-semibold text-slate-800">
+                    {payNowTarget.invoiceNo}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-500">Resident</div>
+                  <div className="font-semibold text-slate-800">
+                    {payNowTarget.residentName}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs text-slate-500">Amount</div>
+                  <div className="font-semibold text-sky-900 text-lg">
+                    {formatCurrency(payNowTarget.amount)}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            
+            <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+              
+              <div className="lg:col-span-2">
+                <div className="mb-3 text-sm font-semibold text-slate-700">
+                  Payment Method
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                
+                  <label
+                    className={`flex items-center gap-3 p-3 rounded-lg ${
+                      paymentMethod === "Card"
+                        ? "border-2 border-teal-200 bg-teal-50 shadow-sm"
+                        : "border border-slate-200 bg-white"
+                    } cursor-pointer transition`}
+                  >
+                    <input
+                      type="radio"
+                      name="pm"
+                      className="form-radio ml-1"
+                      checked={paymentMethod === "Card"}
+                      onChange={() => setPaymentMethod("Card")}
+                    />
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-6 flex items-center justify-center">
+                        <span className="text-xl">💳</span>
+                      </div>
+                      <div>
+                        <div className="text-slate-800">
+                          Credit / Debit Card
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          Visa, MasterCard, Rupay
+                        </div>
+                      </div>
+                    </div>
+                  </label>
+
+                  
+                  <label
+                    className={`flex items-center gap-3 p-3 rounded-lg ${
+                      paymentMethod === "PayPal"
+                        ? "border-2 border-indigo-200 bg-indigo-50 shadow-sm"
+                        : "border border-slate-200 bg-white"
+                    } cursor-pointer transition`}
+                  >
+                    <input
+                      type="radio"
+                      name="pm"
+                      className="form-radio ml-1"
+                      checked={paymentMethod === "PayPal"}
+                      onChange={() => setPaymentMethod("PayPal")}
+                    />
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-6 flex items-center justify-center">
+                        <span className="text-xl">🅿️</span>
+                      </div>
+                      <div>
+                        <div className="text-slate-800">PayPal</div>
+                        <div className="text-xs text-slate-500">
+                          Redirect to PayPal (simulated)
+                        </div>
+                      </div>
+                    </div>
+                  </label>
+
+                 
+                  <label
+                    className={`flex items-center gap-3 p-3 rounded-lg ${
+                      paymentMethod === "Cash"
+                        ? "border-2 border-amber-200 bg-amber-50 shadow-sm"
+                        : "border border-slate-200 bg-white"
+                    } cursor-pointer transition`}
+                  >
+                    <input
+                      type="radio"
+                      name="pm"
+                      className="form-radio ml-1"
+                      checked={paymentMethod === "Cash"}
+                      onChange={() => setPaymentMethod("Cash")}
+                    />
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-6 flex items-center justify-center">
+                        <span className="text-xl">💵</span>
+                      </div>
+                      <div className="text-slate-800">Cash</div>
+                    </div>
+                  </label>
+
+                
+                  <label
+                    className={`flex items-center gap-3 p-3 rounded-lg ${
+                      paymentMethod === "UPI"
+                        ? "border-2 border-sky-300 bg-sky-50 shadow-sm"
+                        : "border border-slate-200 bg-white"
+                    } cursor-pointer transition`}
+                  >
+                    <input
+                      type="radio"
+                      name="pm"
+                      className="form-radio ml-1"
+                      checked={paymentMethod === "UPI"}
+                      onChange={() => setPaymentMethod("UPI")}
+                    />
+                    <div className="text-slate-800">UPI</div>
+                  </label>
+                </div>
+
+                
+                <div className="mt-4">
+                  {paymentMethod === "Card" && (
+                    <div className="space-y-3">
+                      <input
+                        value={cardNumber}
+                        onChange={(e) => setCardNumber(e.target.value)}
+                        placeholder="Card Number"
+                        className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-100"
+                      />
+
+                      <div className="flex gap-3">
+                        <input
+                          value={expiry}
+                          onChange={(e) => setExpiry(e.target.value)}
+                          placeholder="MM/YY"
+                          className="flex-1 border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-100"
+                        />
+                        <input
+                          value={cvv}
+                          onChange={(e) => setCvv(e.target.value)}
+                          placeholder="CVV"
+                          className="w-32 border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-100"
+                        />
+                      </div>
+
+                      <input
+                        value={cardName}
+                        onChange={(e) => setCardName(e.target.value)}
+                        placeholder="Cardholder Name"
+                        className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-100"
+                      />
+
+                      <label className="flex items-start gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={authorize}
+                          onChange={(e) => setAuthorize(e.target.checked)}
+                          className="mt-1"
+                        />
+                        <div className="text-slate-600">
+                          I authorize this payment and agree to the{" "}
+                          <span className="underline">
+                            terms and conditions
+                          </span>
+                          .
+                        </div>
+                      </label>
+                    </div>
+                  )}
+
+                  {paymentMethod === "UPI" && (
+                    <div className="space-y-3">
+                      <div className="p-3 border rounded text-sm text-slate-700 bg-white">
+                        <div className="text-xs text-slate-500">UPI ID</div>
+                        <div className="font-medium">your-upi-id@upi</div>
+                      </div>
+
+                      <div className="flex items-center gap-4 mt-2">
+                        <div
+                          className="w-36 h-36 border-2 border-dashed rounded-md bg-white flex items-center justify-center shadow-inner"
+                          style={{ borderColor: "#E6F5FF" }}
+                        >
+                          <div
+                            style={{
+                              width: 80,
+                              height: 80,
+                              background:
+                                "repeating-linear-gradient(45deg,#E6F5FF 0 6px,#FFFFFF 6px 12px)",
+                            }}
+                          />
+                        </div>
+
+                        <div className="text-sm text-slate-600">
+                          <div className="font-medium mb-1">Scan & Pay</div>
+                          <div className="text-xs">
+                            Scan the QR using any UPI app (Google Pay,
+                            PhonePe, Paytm)
+                          </div>
+                          <div className="mt-2 font-medium text-slate-800">
+                            your-upi-id@upi
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {paymentMethod === "PayPal" && (
+                    <div className="p-3 border rounded text-sm text-slate-700">
+                      Resident will be redirected to PayPal (simulated).
+                    </div>
+                  )}
+
+                  {paymentMethod === "Cash" && (
+                    <div className="p-3 border rounded text-sm text-slate-700">
+                      Collect cash at the office and mark as Paid.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+             
+              <aside className="order-first lg:order-last">
+                <div className="border rounded-lg p-4 shadow-sm bg-white w-full">
+                  <div className="text-xs text-slate-500">Invoice</div>
+                  <div className="font-semibold mb-3 text-slate-800">
+                    {payNowTarget.invoiceNo}
+                  </div>
+
+                  <div className="text-xs text-slate-500">Resident</div>
+                  <div className="font-medium mb-3">
+                    {payNowTarget.residentName}
+                  </div>
+
+                  <div className="text-xs text-slate-500">Amount</div>
+                  <div className="text-2xl font-bold text-sky-800 mb-4">
+                    {formatCurrency(payNowTarget.amount)}
+                  </div>
+
+                  <table className="w-full text-sm">
+                    <tbody>
+                      <tr className="text-slate-600">
+                        <td className="py-2">Room</td>
+                        <td className="py-2 text-right">
+                          {payNowTarget.roomNumber || "-"}
+                        </td>
+                      </tr>
+                      <tr className="border-t font-semibold">
+                        <td className="py-2">Total</td>
+                        <td className="py-2 text-right">
+                          {formatCurrency(payNowTarget.amount)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  <div className="mt-4 text-xs text-slate-500">
+                    Paid via selected method will update the invoice status.
+                  </div>
+                </div>
+              </aside>
+            </div>
+
+           
+            <div className="flex items-center justify-end gap-3 p-4 border-t">
+              <button
+                onClick={() => {
+                  if (!payNowProcessing) {
+                    setPayNowOpen(false);
+                    setPayNowTarget(null);
+                  }
+                }}
+                className="px-4 py-2 border rounded text-slate-700"
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={() => {
+                  if (payNowProcessing) return;
+                  confirmPayNow(paymentMethod);
+                }}
+                className={`px-4 py-2 rounded text-white ${
+                  payNowProcessing
+                    ? "bg-emerald-300"
+                    : "bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700"
+                }`}
+                aria-busy={payNowProcessing}
+              >
+                {payNowProcessing ? "Processing..." : "Process Payment"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      
+      {showView && viewPayment && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" />
+          <div className="relative z-10 w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
+            <div className="flex items-start justify-between px-5 pt-4 pb-3 border-b bg-slate-50">
+              <div>
+                <p className="text-[11px] font-semibold tracking-wide text-slate-500 uppercase">
+                  Payment Details
+                </p>
+                <p className="text-sm font-semibold text-slate-900">
+                  {viewPayment.residentName || "Resident"}
+                </p>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Invoice • {viewPayment.invoiceNo || "-"}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <StatusChip status={viewPayment.status} />
+                <button
+                  onClick={() => setShowView(false)}
+                  className="ml-1 text-slate-400 hover:text-slate-600 rounded-full p-1 hover:bg-slate-100 transition"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <div className="px-5 py-4 space-y-4 text-sm">
+              <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-slate-500">
+                    Room
+                  </p>
+                  <p className="font-medium text-slate-800">
+                    {viewPayment.roomNumber || "-"}
+                  </p>
+                </div>
+
+                <div className="text-right">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-500">
+                    Amount
+                  </p>
+                  <p className="font-semibold text-emerald-700 text-base">
+                    {formatCurrency(viewPayment.amount)}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-slate-500">
+                    Month
+                  </p>
+                  <p className="font-medium text-slate-800">
+                    {viewPayment.month || "-"}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-slate-500">
+                    Due Date
+                  </p>
+                  <p className="font-medium text-slate-800">
+                    {viewPayment.dueDate
+                      ? new Date(viewPayment.dueDate).toLocaleDateString()
+                      : "-"}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-slate-500">
+                    Paid On
+                  </p>
+                  <p className="font-medium text-slate-800">
+                    {viewPayment.paidOn || "-"}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-slate-500">
+                    Method
+                  </p>
+                  <p className="font-medium text-slate-800">
+                    {viewPayment.method || "—"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="border rounded-xl px-3 py-2.5 bg-slate-50">
+                <p className="text-[11px] uppercase tracking-wide text-slate-500 mb-1.5">
+                  Notes
+                </p>
+                <p className="text-sm text-slate-700 whitespace-pre-wrap">
+                  {viewPayment.notes && viewPayment.notes.trim() !== ""
+                    ? viewPayment.notes
+                    : "No special notes for this payment."}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between px-5 py-3 border-t bg-slate-50/80">
+              <p className="text-[11px] text-slate-500">
+                Created on{" "}
+                {viewPayment.createdAt
+                  ? new Date(viewPayment.createdAt).toLocaleDateString()
+                  : "-"}
+              </p>
+
+              <button
+                onClick={() => setShowView(false)}
+                className="px-4 py-1.5 text-sm rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100 transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    
+      {showAdd && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-slate-900/40" />
+          <div className="relative z-10 w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-100 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-slate-900">
+                Add Payment
+              </h3>
+              <button
+                onClick={() => setShowAdd(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form
+              className="space-y-3 text-sm"
+              onSubmit={submitAdd}
+              autoComplete="off"
+            >
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">
+                  Resident Name
+                </label>
+                <input
+                  value={addForm.residentName}
+                  onChange={(e) =>
+                    setAddForm({ ...addForm, residentName: e.target.value })
+                  }
+                  className="w-full border rounded px-3 py-2"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">
+                    Room Number
+                  </label>
+                  <input
+                    value={addForm.roomNumber}
+                    onChange={(e) =>
+                      setAddForm({ ...addForm, roomNumber: e.target.value })
+                    }
+                    className="w-full border rounded px-3 py-2"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">
+                    Amount
+                  </label>
+                  <input
+                    value={addForm.amount}
+                    onChange={(e) =>
+                      setAddForm({ ...addForm, amount: e.target.value })
+                    }
+                    className="w-full border rounded px-3 py-2"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">
+                    Month
+                  </label>
+                  <input
+                    value={addForm.month}
+                    onChange={(e) =>
+                      setAddForm({ ...addForm, month: e.target.value })
+                    }
+                    className="w-full border rounded px-3 py-2"
+                    placeholder="Dec 2025"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">
+                    Due Date
+                  </label>
+                  <input
+                    type="date"
+                    value={formatDateForInput(addForm.dueDate)}
+                    onChange={(e) =>
+                      setAddForm({ ...addForm, dueDate: e.target.value })
+                    }
+                    className="w-full border rounded px-3 py-2"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">
+                  Notes
+                </label>
+                <textarea
+                  value={addForm.notes}
+                  onChange={(e) =>
+                    setAddForm({ ...addForm, notes: e.target.value })
+                  }
+                  className="w-full border rounded px-3 py-2"
+                  rows={2}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 mt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowAdd(false)}
+                  className="px-3 py-1.5 text-sm border rounded"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-3 py-1.5 text-sm rounded bg-emerald-600 text-white"
+                >
+                  Save
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      
+      {showInvoice && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-slate-900/40" />
+          <div className="relative z-10 w-full max-w-2xl bg-white rounded-2xl shadow-xl border border-slate-100 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900">
+                  Generate Invoice
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Create a formal invoice for a resident.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowInvoice(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form
+              className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm"
+              onSubmit={handleGenerateInvoice}
+            >
+              <div className="md:col-span-2">
+                <label className="block text-xs text-slate-500 mb-1">
+                  Invoice Number
+                </label>
+                <input
+                  value={invoiceData.invoiceNo}
+                  onChange={(e) =>
+                    setInvoiceData({ ...invoiceData, invoiceNo: e.target.value })
+                  }
+                  className="w-full border rounded px-3 py-2"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-xs text-slate-500 mb-1">
+                  Resident Name
+                </label>
+                <input
+                  value={invoiceData.residentName}
+                  onChange={(e) =>
+                    setInvoiceData({
+                      ...invoiceData,
+                      residentName: e.target.value,
+                    })
+                  }
+                  className="w-full border rounded px-3 py-2"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">
+                  Room Number
+                </label>
+                <input
+                  value={invoiceData.roomNumber}
+                  onChange={(e) =>
+                    setInvoiceData({
+                      ...invoiceData,
+                      roomNumber: e.target.value,
+                    })
+                  }
+                  className="w-full border rounded px-3 py-2"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">
+                  Amount
+                </label>
+                <input
+                  value={invoiceData.amount}
+                  onChange={(e) =>
+                    setInvoiceData({ ...invoiceData, amount: e.target.value })
+                  }
+                  className="w-full border rounded px-3 py-2"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">
+                  Month
+                </label>
+                <input
+                  value={invoiceData.month}
+                  onChange={(e) =>
+                    setInvoiceData({ ...invoiceData, month: e.target.value })
+                  }
+                  className="w-full border rounded px-3 py-2"
+                  placeholder="Dec 2025"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">
+                  Due Date
+                </label>
+                <input
+                  type="date"
+                  value={formatDateForInput(invoiceData.dueDate)}
+                  onChange={(e) =>
+                    setInvoiceData({
+                      ...invoiceData,
+                      dueDate: e.target.value,
+                    })
+                  }
+                  className="w-full border rounded px-3 py-2"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-xs text-slate-500 mb-1">
+                  Notes on Invoice
+                </label>
+                <textarea
+                  value={invoiceData.notes}
+                  onChange={(e) =>
+                    setInvoiceData({ ...invoiceData, notes: e.target.value })
+                  }
+                  className="w-full border rounded px-3 py-2"
+                  rows={2}
+                />
+              </div>
+
+              <div className="md:col-span-2 flex items-center justify-between mt-2">
+                <div className="text-xs text-slate-500">
+                  Preview total:{" "}
+                  <span className="font-semibold text-slate-800">
+                    {formatCurrency(invoiceData.amount || 0)}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setInvoiceData({
+                        invoiceNo: invoiceFallback(),
+                        residentName: "",
+                        roomNumber: "",
+                        month: "",
+                        amount: "",
+                        dueDate: addDaysISO(30),
+                        notes: "Thank you for your payment.",
+                      })
+                    }
+                    className="px-3 py-1.5 text-sm border rounded"
+                  >
+                    Reset
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-3 py-1.5 text-sm rounded bg-indigo-600 text-white"
+                  >
+                    Generate
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
