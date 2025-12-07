@@ -2,460 +2,689 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Card from "../components/Card";
 
-var API_URL = import.meta.env.VITE_API_BASE_URL + "/api/billing";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
 
+function pad(n) { return String(n).padStart(2, "0"); }
+function invoiceFallback() {
+  const now = new Date();
+  const y = String(now.getFullYear()).slice(-2);
+  const m = pad(now.getMonth() + 1);
+  const d = pad(now.getDate());
+  const hh = pad(now.getHours());
+  const mm = pad(now.getMinutes());
+  const ss = pad(now.getSeconds());
+  const rand = Math.floor(1000 + Math.random() * 9000);
+  return `INV-${y}${m}${d}-${hh}${mm}${ss}-${rand}`;
+}
+function addDaysISO(days) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
 function formatCurrency(amount) {
-  if (!amount) return "₹0";
+  if (amount == null || amount === "") return "₹0";
   return "₹" + Number(amount).toLocaleString("en-IN");
 }
 
-function StatusBadge(props) {
-  var v = props.value || "";
-  var cls =
-    v === "Paid"
-      ? "bg-green-50 text-green-700"
-      : v === "Pending"
-      ? "bg-amber-50 text-amber-700"
-      : "bg-red-50 text-red-700";
 
-  return (
-    <span className={"px-2 py-0.5 rounded-full text-xs font-medium " + cls}>
-      {v}
-    </span>
-  );
+function StatusChip({ status }) {
+  const base = "inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold";
+  if (status === "Paid") return <span className={base + " bg-emerald-50 text-emerald-700"}>✔ Paid</span>;
+  if (status === "Pending") return <span className={base + " bg-amber-50 text-amber-700"}>⏳ Pending</span>;
+  return <span className={base + " bg-rose-50 text-rose-700"}>⚠ Overdue</span>;
 }
 
 export default function BillingPage() {
-  var [payments, setPayments] = useState([]);
-  var [loading, setLoading] = useState(true);
-  var [error, setError] = useState("");
+  const [payments, setPayments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  var [search, setSearch] = useState("");
-  var [statusFilter, setStatusFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
-  var [showForm, setShowForm] = useState(false);
-  var [formData, setFormData] = useState({
+  const [showAdd, setShowAdd] = useState(false);
+  const [showInvoice, setShowInvoice] = useState(false);
+  const [showView, setShowView] = useState(false);
+
+  const [addForm, setAddForm] = useState({
     residentName: "",
     roomNumber: "",
     amount: "",
     month: "",
-    status: "Paid",
+    dueDate: "",
+    status: "Pending",
     method: "Cash",
+    notes: "",
   });
 
- 
-  useEffect(function () {
-    var isMounted = true;
+  const [invoiceData, setInvoiceData] = useState({
+    invoiceNo: "",
+    residentName: "",
+    roomNumber: "",
+    month: "",
+    amount: "",
+    notes: "Thank you for your payment.",
+  });
 
+  const [viewPayment, setViewPayment] = useState(null);
+
+  
+  const [payNowOpen, setPayNowOpen] = useState(false);
+  const [payNowTarget, setPayNowTarget] = useState(null);
+  const [payNowProcessing, setPayNowProcessing] = useState(false);
+
+
+  const [paymentMethod, setPaymentMethod] = useState("Card"); 
+  const [cardNumber, setCardNumber] = useState("");
+  const [expiry, setExpiry] = useState("");
+  const [cvv, setCvv] = useState("");
+  const [cardName, setCardName] = useState("");
+  const [authorize, setAuthorize] = useState(false);
+
+ 
+  useEffect(() => {
+    let mounted = true;
     async function load() {
       setLoading(true);
       setError("");
+
       try {
-        var res = await fetch(API_URL);
-        if (!res.ok) throw new Error(res.status + " " + res.statusText);
-        var data = await res.json();
-        if (!isMounted) return;
-        var list = data.payments || [];
-        setPayments(list);
+        const res = await fetch(`${API_BASE}/api/billing`);
+        if (!res.ok) throw new Error(`Failed to load (${res.status})`);
+        const data = await res.json();
+
+        const list = (data.payments || []).map((p) => ({
+          ...p,
+          invoiceNo: p.invoiceNo || invoiceFallback(),
+        }));
+
+        if (mounted) setPayments(list);
       } catch (err) {
-       // console.error("Error loading billing", err);
-        if (!isMounted) return;
-        setError("Failed to load billing records.");
+        console.error("load billing err", err);
+        if (mounted) setError("Failed to load billing records.");
       } finally {
-        if (isMounted) setLoading(false);
+        if (mounted) setLoading(false);
+      }
+    }
+    load();
+    return () => (mounted = false);
+  }, []);
+
+  
+  const stats = useMemo(() => {
+    let total = payments.length;
+    let totalAmount = 0;
+    let paid = 0;
+    let pending = 0;
+
+    payments.forEach((p) => {
+      const amt = Number(p.amount || 0);
+      totalAmount += amt;
+      if (p.status === "Paid") paid += amt;
+      if (p.status === "Pending") pending += amt;
+    });
+
+    return { total, totalAmount, paid, pending };
+  }, [payments]);
+
+
+  const filtered = useMemo(() => {
+    const q = (search || "").toLowerCase();
+    return payments.filter((p) => {
+      const matchText =
+        !q ||
+        (p.residentName || "").toLowerCase().includes(q) ||
+        String(p.roomNumber || "").toLowerCase().includes(q) ||
+        (p.month || "").toLowerCase().includes(q);
+
+      const matchStatus = statusFilter === "all" || p.status === statusFilter;
+
+      return matchText && matchStatus;
+    });
+  }, [payments, search, statusFilter]);
+
+  
+  async function markAsPaid(invoiceId) {
+    if (!invoiceId) {
+      throw new Error("Invoice id missing");
+    }
+
+    const url = `${API_BASE}/api/billing/${invoiceId}/pay`;
+    console.log("PATCH ->", url);
+
+    try {
+      const res = await fetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ method: "Manual" }) 
+      });
+
+      const text = await res.text().catch(() => "");
+      let data = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch (e) {
+        data = null;
+      }
+
+      if (!res.ok || (data && data.ok === false)) {
+        const errMsg = (data && data.error) || `PATCH ${url} -> ${res.status} ${res.statusText} ${text}`;
+        throw new Error(errMsg);
+      }
+
+      return data?.payment ?? null;
+    } catch (err) {
+      console.error("markAsPaid err", err);
+      throw err;
+    }
+  }
+
+  
+  function openPayNow(p) {
+    setPayNowTarget(p);
+    setPayNowOpen(true);
+    setPaymentMethod("Card");
+    setCardNumber("");
+    setExpiry("");
+    setCvv("");
+    setCardName("");
+    setAuthorize(false);
+  }
+
+  async function confirmPayNow(methodOverride) {
+    if (!payNowTarget) return;
+    const method = methodOverride || paymentMethod || "Mock";
+
+ 
+    if (method === "Card") {
+      if (!authorize) {
+        alert("Please authorize this payment (check the box).");
+        return;
+      }
+      if (!cardNumber || !expiry || !cvv || !cardName) {
+        alert("Please fill card details.");
+        return;
       }
     }
 
-    load();
-    return function () {
-      isMounted = false;
-    };
-  }, []);
+    setPayNowProcessing(true);
 
-  var stats = useMemo(
-    function () {
-      var total = payments.length;
-      var totalAmount = 0;
-      var totalPaid = 0;
-      var totalPending = 0;
-
-      payments.forEach(function (p) {
-        totalAmount += Number(p.amount || 0);
-        if (p.status === "Paid") totalPaid += Number(p.amount || 0);
-        if (p.status === "Pending") totalPending += Number(p.amount || 0);
-      });
-
-      return {
-        total: total,
-        totalAmount: totalAmount,
-        totalPaid: totalPaid,
-        totalPending: totalPending,
-      };
-    },
-    [payments]
-  );
-
-
-  var filteredPayments = useMemo(
-    function () {
-      var text = search.toLowerCase();
-
-      return payments.filter(function (p) {
-        var matchSearch =
-          !text ||
-          (p.residentName || "").toLowerCase().indexOf(text) !== -1 ||
-          (p.roomNumber || "").toLowerCase().indexOf(text) !== -1 ||
-          (p.month || "").toLowerCase().indexOf(text) !== -1;
-
-        var matchStatus =
-          statusFilter === "all" || p.status === statusFilter;
-
-        return matchSearch && matchStatus;
-      });
-    },
-    [payments, search, statusFilter]
-  );
-
-  
-  function openForm() {
-    setFormData({
-      residentName: "",
-      roomNumber: "",
-      amount: "",
-      month: "",
-      status: "Paid",
-      method: "Cash",
-    });
-    setShowForm(true);
-  }
-
-  function handleFormChange(field, value) {
-    setFormData(function (prev) {
-      return { ...prev, [field]: value };
-    });
-  }
-
-  async function handleFormSubmit(e) {
-    e.preventDefault();
-
-    if (!formData.residentName || !formData.roomNumber || !formData.amount || !formData.month) {
-      alert("Please enter resident, room, amount and month.");
-      return;
-    }
-
-    var payload = {
-      residentName: formData.residentName,
-      roomNumber: formData.roomNumber,
-      amount: Number(formData.amount),
-      month: formData.month,
-      status: formData.status,
-      method: formData.method,
+    
+    const payload = {
+      invoiceId: payNowTarget._id,
+      residentId: payNowTarget.residentId || "",
+      amount: Number(payNowTarget.amount || 0),
+      method: method,
+      providerPaymentId: `mock_pay_${Date.now()}`,
+      providerOrderId: `mock_order_${Date.now()}`,
+      status: "Success",
+      meta: { mock: true },
     };
 
     try {
-      var res = await fetch(API_URL, {
+    
+      try {
+        const r1 = await fetch(`${API_BASE}/api/payments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (r1.ok) {
+          try {
+            const json1 = await r1.json();
+            if (json1 && json1.ok) {
+              
+            }
+          } catch (_) {}
+        }
+      } catch (err) {
+        console.info("POST /api/payments failed (dev fallback):", err?.message || err);
+      }
+
+      const updated = await markAsPaid(payNowTarget._id);
+
+ 
+      setPayments((prev) =>
+        prev.map((p) =>
+          p._id === payNowTarget._id
+            ? {
+                ...p,
+                status: "Paid",
+                paidOn: (updated && updated.paidOn) || new Date().toISOString().slice(0, 10),
+              }
+            : p
+        )
+      );
+
+      alert("Payment successful (mock)");
+
+   
+      setPaymentMethod("Card");
+      setCardNumber("");
+      setExpiry("");
+      setCvv("");
+      setCardName("");
+      setAuthorize(false);
+
+      setPayNowOpen(false);
+      setPayNowTarget(null);
+    } catch (err) {
+      console.error("confirmPayNow err", err);
+      alert("Payment failed: " + (err.message || "Unknown error"));
+    } finally {
+      setPayNowProcessing(false);
+    }
+  }
+
+
+  async function submitAdd(e) {
+    e.preventDefault();
+
+    if (!addForm.residentName || !addForm.roomNumber || !addForm.amount || !addForm.month) {
+      alert("Fill required fields");
+      return;
+    }
+
+    const payload = {
+      ...addForm,
+      amount: Number(addForm.amount),
+      dueDate: addForm.dueDate || addDaysISO(30),
+    };
+
+    try {
+      const res = await fetch(`${API_BASE}/api/invoices`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      var data = await res.json();
 
+      const data = await res.json();
       if (!res.ok || !data.ok) {
-       // console.error("Billing save failed:", data);
-        alert("Failed to save payment.");
+        alert("Error saving invoice");
         return;
       }
 
-      setPayments(function (prev) {
-        return [data.payment].concat(prev);
-      });
+      const saved = data.invoice || payload;
+      saved.invoiceNo = saved.invoiceNo || invoiceFallback();
+      saved._id = saved._id || Date.now();
 
-      setShowForm(false);
+      setPayments((prev) => [saved, ...prev]);
+      setShowAdd(false);
     } catch (err) {
-      //console.error("Error saving payment", err);
-      alert("Error saving payment.");
+      console.error("submitAdd err", err);
+      alert("Network error");
+    }
+  }
+
+ 
+  function openView(p) {
+    setViewPayment(p);
+    setShowView(true);
+  }
+
+ 
+  function sendReminder(id) {
+    alert("Reminder sent to resident.");
+  }
+
+ 
+  function printInvoice() {
+    window.print();
+  }
+
+  function formatDateForInput(iso) {
+    if (!iso) return "";
+    try {
+      return new Date(iso).toISOString().slice(0, 10);
+    } catch {
+      return iso;
     }
   }
 
   return (
-    <main className="p-6 space-y-6">
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <main className="p-6 bg-gray-50 min-h-screen">
+     
+      <div className="flex justify-between items-start">
         <div>
-          <h2 className="text-3xl font-bold">Billing & Payments</h2>
-          <p className="text-sm text-gray-600 mt-1">
-            Track room fees, payment status, and monthly revenue.
-          </p>
+          <h1 className="text-2xl font-semibold">Billing & Payments</h1>
+          <p className="text-sm text-gray-500">Track room fees & invoices</p>
         </div>
 
-        <button
-          onClick={openForm}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700 text-sm"
-        >
-          + Add Payment
-        </button>
+        <div className="flex items-center gap-3">
+          <button onClick={() => setShowInvoice(true)} className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded shadow">
+            Generate Invoice
+          </button>
+          <button onClick={() => setShowAdd(true)} className="px-4 py-2 border rounded">
+            Add
+          </button>
+        </div>
       </div>
 
-    
-      <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
+  
+      <section className="grid grid-cols-1 sm:grid-cols-4 gap-4 mt-6">
         <Card>
-          <div className="text-xs font-semibold text-gray-500 uppercase mb-1">
-            Total Payments
-          </div>
+          <div className="text-xs text-gray-500">Total Payments</div>
           <div className="text-3xl font-bold">{stats.total}</div>
         </Card>
 
         <Card>
-          <div className="text-xs font-semibold text-gray-500 uppercase mb-1">
-            Total Amount
-          </div>
-          <div className="text-2xl font-bold text-purple-600">
-            {formatCurrency(stats.totalAmount)}
-          </div>
+          <div className="text-xs text-gray-500">Total Amount</div>
+          <div className="text-2xl font-bold text-purple-600">{formatCurrency(stats.totalAmount)}</div>
         </Card>
 
         <Card>
-          <div className="text-xs font-semibold text-gray-500 uppercase mb-1">
-            Paid
-          </div>
-          <div className="text-2xl font-bold text-green-600">
-            {formatCurrency(stats.totalPaid)}
-          </div>
+          <div className="text-xs text-gray-500">Paid</div>
+          <div className="text-2xl font-bold text-green-600">{formatCurrency(stats.paid)}</div>
         </Card>
 
         <Card>
-          <div className="text-xs font-semibold text-gray-500 uppercase mb-1">
-            Pending
-          </div>
-          <div className="text-2xl font-bold text-amber-600">
-            {formatCurrency(stats.totalPending)}
-          </div>
+          <div className="text-xs text-gray-500">Pending</div>
+          <div className="text-2xl font-bold text-amber-600">{formatCurrency(stats.pending)}</div>
         </Card>
       </section>
 
 
-      <Card title="Payment History">
-    
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <Card title="Payment History" className="mt-6">
+        <div className="flex gap-3 mb-4">
           <input
-            type="text"
-            placeholder="Search by resident, room or month..."
-            className="border px-3 py-2 rounded text-sm flex-1 min-w-[220px]"
             value={search}
-            onChange={function (e) {
-              setSearch(e.target.value);
-            }}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by resident, room or month..."
+            className="flex-1 border px-3 py-2 rounded"
+            aria-label="Search payments"
           />
 
-          <select
-            className="border px-3 py-2 rounded text-sm"
-            value={statusFilter}
-            onChange={function (e) {
-              setStatusFilter(e.target.value);
-            }}
-          >
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="border px-3 py-2 rounded" aria-label="Filter status">
             <option value="all">All Status</option>
-            <option value="Paid">Paid</option>
-            <option value="Pending">Pending</option>
-            <option value="Overdue">Overdue</option>
+            <option>Paid</option>
+            <option>Pending</option>
+            <option>Overdue</option>
           </select>
         </div>
 
-       
-        {loading && (
-          <div className="py-8 text-center text-gray-500 text-sm">
-            Loading billing records…
-          </div>
-        )}
-
-        {!loading && error && (
-          <div className="py-8 text-center text-red-500 text-sm">{error}</div>
-        )}
+        {loading && <p className="text-center py-6 text-gray-500">Loading…</p>}
+        {error && <p className="text-center py-6 text-red-500">{error}</p>}
 
         {!loading && !error && (
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm border-t border-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="text-left px-3 py-2 font-semibold">Resident</th>
-                  <th className="text-left px-3 py-2 font-semibold">Room</th>
-                  <th className="text-left px-3 py-2 font-semibold">Month</th>
-                  <th className="text-left px-3 py-2 font-semibold">Method</th>
-                  <th className="text-left px-3 py-2 font-semibold">Status</th>
-                  <th className="text-right px-3 py-2 font-semibold">Amount</th>
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 text-left text-xs text-gray-500 border-b">
+                  <th className="px-3 py-2">Invoice</th>
+                  <th className="px-3 py-2">Resident</th>
+                  <th className="px-3 py-2">Room</th>
+                  <th className="px-3 py-2">Amount</th>
+                  <th className="px-3 py-2">Due</th>
+                  <th className="px-3 py-2">Status</th>
+                  <th className="px-3 py-2">Actions</th>
                 </tr>
               </thead>
+
               <tbody>
-                {filteredPayments.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan="6"
-                      className="px-3 py-4 text-center text-gray-500"
-                    >
-                      No payments found.
+                {filtered.map((p) => (
+                  <tr key={p._id} className="border-b">
+                    <td className="px-3 py-3 max-w-[220px]">{p.invoiceNo}</td>
+                    <td className="px-3 py-3">{p.residentName}</td>
+                    <td className="px-3 py-3">{p.roomNumber}</td>
+                    <td className="px-3 py-3">{formatCurrency(p.amount)}</td>
+                    <td className="px-3 py-3">{p.dueDate ? new Date(p.dueDate).toLocaleDateString() : "-"}</td>
+                    <td className="px-3 py-3"><StatusChip status={p.status} /></td>
+
+                    <td className="px-3 py-3 flex gap-2">
+                      <button onClick={() => openView(p)} className="px-2 py-1 text-xs bg-indigo-50 text-indigo-600 rounded">View</button>
+
+                      {p.status !== "Paid" && (
+                        <>
+                          <button onClick={() => openPayNow(p)} className="px-2 py-1 text-xs bg-green-600 text-white rounded">Pay Now</button>
+                          <button onClick={async () => {
+                            try {
+                              const upd = await markAsPaid(p._id);
+                              setPayments((prev) => prev.map(x => x._id === p._id ? {...x, status: "Paid", paidOn: (upd && upd.paidOn) || new Date().toISOString().slice(0,10)} : x));
+                              alert("Marked as Paid");
+                            } catch (err) {
+                              alert("Error updating payment: " + (err.message || ""));
+                            }
+                          }} className="px-2 py-1 text-xs bg-emerald-700 text-white rounded">Mark Paid</button>
+                        </>
+                      )}
+
+                      <button onClick={() => sendReminder(p._id)} className="px-2 py-1 text-xs bg-amber-50 text-amber-700 rounded">Remind</button>
                     </td>
                   </tr>
-                )}
+                ))}
 
-                {filteredPayments.map(function (p) {
-                  return (
-                    <tr key={p._id} className="border-t">
-                      <td className="px-3 py-2">{p.residentName}</td>
-                      <td className="px-3 py-2">{p.roomNumber}</td>
-                      <td className="px-3 py-2">{p.month}</td>
-                      <td className="px-3 py-2 text-gray-700">{p.method}</td>
-                      <td className="px-3 py-2">
-                        <StatusBadge value={p.status} />
-                      </td>
-                      <td className="px-3 py-2 text-right font-medium">
-                        {formatCurrency(p.amount)}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {filtered.length === 0 && (
+                  <tr>
+                    <td colSpan="7" className="py-6 text-center text-gray-500">No records found</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
         )}
       </Card>
 
-      {showForm && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-20">
-          <div className="bg-white rounded-lg shadow-lg w-full max-w-lg p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-semibold">Add Payment</h3>
-              <button
-                onClick={function () {
-                  setShowForm(false);
-                }}
-                className="text-gray-500 hover:text-gray-700 text-lg"
-              >
-                ×
-              </button>
+    
+      {payNowOpen && payNowTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+
+          <div className="relative z-10 bg-white rounded-2xl shadow-[0_30px_60px_rgba(2,6,23,0.35)] w-full max-w-3xl mx-auto border border-slate-100 overflow-hidden">
+        
+            <div className="flex items-start justify-between p-5 border-b" style={{background: 'linear-gradient(90deg, #F8FAFF 0%, #F2FBFF 100%)'}}>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-800">Process Payment</h3>
+                <p className="text-sm text-slate-500">Review payment details and complete the transaction.</p>
+              </div>
+              <button onClick={() => { if (!payNowProcessing) { setPayNowOpen(false); setPayNowTarget(null); } }} className="text-slate-400 hover:text-slate-600" aria-label="Close">✕</button>
             </div>
 
-            <form onSubmit={handleFormSubmit} className="space-y-4">
+          
+            <div className="p-4 border-b" style={{background: 'linear-gradient(90deg, rgba(232,249,255,0.6) 0%, rgba(243,249,255,0.4) 100%)'}}>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start text-sm">
+                <div>
+                  <div className="text-xs text-slate-500">Invoice</div>
+                  <div className="font-semibold text-slate-800">{payNowTarget.invoiceNo}</div>
+                </div>
+
+                <div>
+                  <div className="text-xs text-slate-500">Resident</div>
+                  <div className="font-semibold text-slate-800">{payNowTarget.residentName}</div>
+                </div>
+
+                <div className="text-right">
+                  <div className="text-xs text-slate-500">Amount</div>
+                  <div className="font-semibold text-sky-900 text-lg">{formatCurrency(payNowTarget.amount)}</div>
+                </div>
+              </div>
+            </div>
+
+         
+            <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+             
+              <div className="lg:col-span-2">
+                <div className="mb-3 text-sm font-semibold text-slate-700">Payment Method</div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label
+                    className={`flex items-center gap-3 p-3 rounded-lg ${paymentMethod === 'Card' ? 'border-2 border-teal-200 bg-teal-50 shadow-sm' : 'border border-slate-200 bg-white'} cursor-pointer transition`}
+                    role="radio"
+                    aria-checked={paymentMethod === 'Card'}
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setPaymentMethod('Card'); }}
+                  >
+                    <input type="radio" name="pm" className="form-radio ml-1" checked={paymentMethod === "Card"} onChange={() => setPaymentMethod("Card")} aria-label="Credit or Debit Card"/>
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-6 flex items-center justify-center"><span className="text-xl">💳</span></div>
+                      <div>
+                        <div className="text-slate-800">Credit / Debit Card</div>
+                        <div className="text-xs text-slate-500">Visa, MasterCard, Rupay</div>
+                      </div>
+                    </div>
+                  </label>
+
+                  <label
+                    className={`flex items-center gap-3 p-3 rounded-lg ${paymentMethod === 'PayPal' ? 'border-2 border-indigo-200 bg-indigo-50 shadow-sm' : 'border border-slate-200 bg-white'} cursor-pointer transition`}
+                    role="radio"
+                    aria-checked={paymentMethod === 'PayPal'}
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setPaymentMethod('PayPal'); }}
+                  >
+                    <input type="radio" name="pm" className="form-radio ml-1" checked={paymentMethod === "PayPal"} onChange={() => setPaymentMethod("PayPal")} aria-label="PayPal"/>
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-6 flex items-center justify-center"><span className="text-xl">🅿️</span></div>
+                      <div>
+                        <div className="text-slate-800">PayPal</div>
+                        <div className="text-xs text-slate-500">Redirect to PayPal (simulated)</div>
+                      </div>
+                    </div>
+                  </label>
+
+                  <label
+                    className={`flex items-center gap-3 p-3 rounded-lg ${paymentMethod === 'Cash' ? 'border-2 border-amber-200 bg-amber-50 shadow-sm' : 'border border-slate-200 bg-white'} cursor-pointer transition`}
+                    role="radio"
+                    aria-checked={paymentMethod === 'Cash'}
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setPaymentMethod('Cash'); }}
+                  >
+                    <input type="radio" name="pm" className="form-radio ml-1" checked={paymentMethod === "Cash"} onChange={() => setPaymentMethod("Cash")} aria-label="Cash"/>
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-6 flex items-center justify-center"><span className="text-xl">💵</span></div>
+                      <div className="text-slate-800">Cash</div>
+                    </div>
+                  </label>
+
+                  <label
+                    className={`flex items-center gap-3 p-3 rounded-lg ${paymentMethod === 'UPI' ? 'border-2 border-sky-300 bg-sky-50 shadow-sm' : 'border border-slate-200 bg-white'} cursor-pointer transition`}
+                    role="radio"
+                    aria-checked={paymentMethod === 'UPI'}
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setPaymentMethod('UPI'); }}
+                  >
+                    <input type="radio" name="pm" className="form-radio ml-1" checked={paymentMethod === "UPI"} onChange={() => setPaymentMethod("UPI")} aria-label="UPI"/>
+                    <div className="text-slate-800">UPI</div>
+                  </label>
+                </div>
+
+              
+                <div className="mt-4">
+                  {paymentMethod === 'Card' && (
+                    <div className="space-y-3">
+                      <input value={cardNumber} onChange={(e) => setCardNumber(e.target.value)} placeholder="Card Number" className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-100" />
+
+                      <div className="flex gap-3">
+                        <input value={expiry} onChange={(e) => setExpiry(e.target.value)} placeholder="MM/YY" className="flex-1 border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-100" />
+                        <input value={cvv} onChange={(e) => setCvv(e.target.value)} placeholder="CVV" className="w-32 border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-100" />
+                      </div>
+
+                      <input value={cardName} onChange={(e) => setCardName(e.target.value)} placeholder="Cardholder Name" className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-100" />
+
+                      <label className="flex items-start gap-2 text-sm">
+                        <input type="checkbox" checked={authorize} onChange={(e) => setAuthorize(e.target.checked)} className="mt-1" />
+                        <div className="text-slate-600">I authorize this payment and agree to the <span className="underline">terms and conditions</span>.</div>
+                      </label>
+                    </div>
+                  )}
+
+                  {paymentMethod === 'UPI' && (
+                    <div className="space-y-3">
+                      <div className="p-3 border rounded text-sm text-slate-700 bg-white">
+                        <div className="text-xs text-slate-500">UPI ID</div>
+                        <div className="font-medium">your-upi-id@upi</div>
+                      </div>
+
+                      
+                      <div className="flex items-center gap-4 mt-2">
+                        <div className="w-36 h-36 border-2 border-dashed rounded-md bg-white flex items-center justify-center shadow-inner" style={{borderColor: '#E6F5FF'}}>
+                          <div style={{width: 80, height: 80, background: 'repeating-linear-gradient(45deg,#E6F5FF 0 6px,#FFFFFF 6px 12px)'}} />
+                        </div>
+
+                        <div className="text-sm text-slate-600">
+                          <div className="font-medium mb-1">Scan & Pay</div>
+                          <div className="text-xs">Scan the QR using any UPI app (Google Pay, PhonePe, Paytm)</div>
+                          <div className="mt-2 font-medium text-slate-800">your-upi-id@upi</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {paymentMethod === 'PayPal' && (
+                    <div className="p-3 border rounded text-sm text-slate-700">Resident will be redirected to PayPal (simulated).</div>
+                  )}
+
+                  {paymentMethod === 'Cash' && (
+                    <div className="p-3 border rounded text-sm text-slate-700">Collect cash at the office and mark as Paid.</div>
+                  )}
+                </div>
+              </div>
+
+              
+              <aside className="order-first lg:order-last">
+                <div className="border rounded-lg p-4 shadow-sm bg-white w-full">
+                  <div className="text-xs text-slate-500">Invoice</div>
+                  <div className="font-semibold mb-3 text-slate-800">{payNowTarget.invoiceNo}</div>
+
+                  <div className="text-xs text-slate-500">Resident</div>
+                  <div className="font-medium mb-3">{payNowTarget.residentName}</div>
+
+                  <div className="text-xs text-slate-500">Amount</div>
+                  <div className="text-2xl font-bold text-sky-800 mb-4">{formatCurrency(payNowTarget.amount)}</div>
+
+                  <table className="w-full text-sm">
+                    <tbody>
+                      <tr className="text-slate-600"><td className="py-2">Room</td><td className="py-2 text-right">{payNowTarget.roomNumber || '-'}</td></tr>
+                      <tr className="border-t font-semibold"><td className="py-2">Total</td><td className="py-2 text-right">{formatCurrency(payNowTarget.amount)}</td></tr>
+                    </tbody>
+                  </table>
+
+                  <div className="mt-4 text-xs text-slate-500">Paid via selected method will update the invoice status.</div>
+                </div>
+              </aside>
+            </div>
+
+          
+            <div className="flex items-center justify-end gap-3 p-4 border-t">
+              <button onClick={() => { if (!payNowProcessing) { setPayNowOpen(false); setPayNowTarget(null); } }} className="px-4 py-2 border rounded text-slate-700">Cancel</button>
+
+              <button
+                onClick={() => { if (payNowProcessing) return; confirmPayNow(paymentMethod); }}
+                className={`px-4 py-2 rounded text-white ${payNowProcessing ? 'bg-emerald-300' : 'bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700'}`}
+                aria-busy={payNowProcessing}
+              >
+                {payNowProcessing ? 'Processing...' : 'Process Payment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+     
+      {showView && viewPayment && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40" />
+          <div className="relative z-10 w-full max-w-lg bg-white rounded-lg shadow-lg p-6">
+            <div className="flex justify-between items-start">
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Resident Name
-                </label>
-                <input
-                  type="text"
-                  className="border px-3 py-2 rounded w-full text-sm"
-                  value={formData.residentName}
-                  onChange={function (e) {
-                    handleFormChange("residentName", e.target.value);
-                  }}
-                  placeholder="e.g. Alice"
-                />
+                <h3 className="text-lg font-semibold">Payment Details</h3>
+                <div className="text-sm text-gray-500">{viewPayment.residentName}</div>
               </div>
+              <button onClick={() => setShowView(false)} className="text-gray-400" aria-label="Close">✕</button>
+            </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Room Number
-                  </label>
-                  <input
-                    type="text"
-                    className="border px-3 py-2 rounded w-full text-sm"
-                    value={formData.roomNumber}
-                    onChange={function (e) {
-                      handleFormChange("roomNumber", e.target.value);
-                    }}
-                    placeholder="e.g. 101"
-                  />
-                </div>
+            <div className="mt-4 space-y-2">
+              <div><strong>Invoice:</strong> {viewPayment.invoiceNo}</div>
+              <div><strong>Room:</strong> {viewPayment.roomNumber}</div>
+              <div><strong>Amount:</strong> {formatCurrency(viewPayment.amount)}</div>
+              <div><strong>Month:</strong> {viewPayment.month}</div>
+              <div><strong>Due:</strong> {viewPayment.dueDate || "-"}</div>
+              <div><strong>Status:</strong> {viewPayment.status}</div>
+              <div><strong>Notes:</strong> {viewPayment.notes || "-"}</div>
+            </div>
 
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Month
-                  </label>
-                  <input
-                    type="text"
-                    className="border px-3 py-2 rounded w-full text-sm"
-                    value={formData.month}
-                    onChange={function (e) {
-                      handleFormChange("month", e.target.value);
-                    }}
-                    placeholder="e.g. Jan 2025"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Amount (₹)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    className="border px-3 py-2 rounded w-full text-sm"
-                    value={formData.amount}
-                    onChange={function (e) {
-                      handleFormChange("amount", e.target.value);
-                    }}
-                    placeholder="6000"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Method
-                  </label>
-                  <select
-                    className="border px-3 py-2 rounded w-full text-sm"
-                    value={formData.method}
-                    onChange={function (e) {
-                      handleFormChange("method", e.target.value);
-                    }}
-                  >
-                    <option value="Cash">Cash</option>
-                    <option value="UPI">UPI</option>
-                    <option value="Card">Card</option>
-                    <option value="Bank Transfer">Bank Transfer</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Status
-                  </label>
-                  <select
-                    className="border px-3 py-2 rounded w-full text-sm"
-                    value={formData.status}
-                    onChange={function (e) {
-                      handleFormChange("status", e.target.value);
-                    }}
-                  >
-                    <option value="Paid">Paid</option>
-                    <option value="Pending">Pending</option>
-                    <option value="Overdue">Overdue</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={function () {
-                    setShowForm(false);
-                  }}
-                  className="px-4 py-2 border rounded text-sm"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded text-sm"
-                >
-                  Save Payment
-                </button>
-              </div>
-            </form>
+            <div className="mt-4 flex justify-end gap-3">
+              <button onClick={() => setShowView(false)} className="px-4 py-2 border rounded">Close</button>
+            </div>
           </div>
         </div>
       )}

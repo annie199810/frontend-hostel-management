@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 
@@ -15,6 +16,10 @@ import UserManagementPage from "./pages/UserManagementPage";
 
 import LoginPage from "./components/LoginPage";
 import RegisterPage from "./components/RegisterPage";
+import AboutPage from "./pages/AboutPage";
+
+
+
 
 const PAGES = {
   dashboard: { title: "Dashboard", component: DashboardPage },
@@ -65,9 +70,9 @@ function ProtectedLayoutInner() {
 }
 
 function ProtectedLayout() {
-
   return <ProtectedLayoutInner />;
 }
+
 
 export default function AppWrapper() {
   return (
@@ -76,6 +81,11 @@ export default function AppWrapper() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+
+  
+          <Route path="/about" element={<AboutPage />} />
+
+          
           <Route path="/*" element={<ProtectedLayout />} />
         </Routes>
       </BrowserRouter>
