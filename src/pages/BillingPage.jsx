@@ -135,7 +135,7 @@ export default function BillingPage() {
     return { total, totalAmount, paid, pending };
   }, [payments]);
 
- 
+  
   const filtered = useMemo(() => {
     const q = (search || "").toLowerCase();
     return payments.filter((p) => {
@@ -180,7 +180,7 @@ export default function BillingPage() {
     return data?.payment ?? null;
   }
 
- 
+  
   function openPayNow(p) {
     setPayNowTarget(p);
     setPayNowOpen(true);
@@ -192,17 +192,18 @@ export default function BillingPage() {
     setAuthorize(false);
   }
 
+  
   async function confirmPayNow(methodOverride) {
     if (!payNowTarget) return;
     const method = methodOverride || paymentMethod || "Mock";
 
     if (method === "Card") {
       if (!authorize) {
-        alert("Please authorize this payment (check the box).");
+        alert("Please authorize this payment by selecting the checkbox.");
         return;
       }
       if (!cardNumber || !expiry || !cvv || !cardName) {
-        alert("Please fill card details.");
+        alert("Please complete all card details before proceeding.");
         return;
       }
     }
@@ -221,7 +222,7 @@ export default function BillingPage() {
     };
 
     try {
-   
+     
       try {
         const r1 = await fetch(`${API_BASE}/api/payments`, {
           method: "POST",
@@ -254,7 +255,9 @@ export default function BillingPage() {
         )
       );
 
-      alert("Payment successful (mock)");
+      
+      alert("Payment has been processed successfully.");
+
       setPaymentMethod("Card");
       setCardNumber("");
       setExpiry("");
@@ -271,7 +274,7 @@ export default function BillingPage() {
     }
   }
 
- 
+  
   async function submitAdd(e) {
     e.preventDefault();
 
@@ -281,7 +284,7 @@ export default function BillingPage() {
       !addForm.amount ||
       !addForm.month
     ) {
-      alert("Fill required fields");
+      alert("Please fill in all required fields.");
       return;
     }
 
@@ -308,7 +311,7 @@ export default function BillingPage() {
       const data = await res.json();
       if (!res.ok || !data.ok) {
         console.error("submitAdd backend err:", data);
-        alert("Error saving invoice");
+        alert("Unable to save the payment. Please try again.");
         return;
       }
 
@@ -319,11 +322,11 @@ export default function BillingPage() {
       setShowAdd(false);
     } catch (err) {
       console.error("submitAdd err", err);
-      alert("Network error");
+      alert("Network error. Please try again in a moment.");
     }
   }
 
-  
+
   async function handleGenerateInvoice(e) {
     e.preventDefault();
 
@@ -333,7 +336,7 @@ export default function BillingPage() {
       !invoiceData.amount ||
       !invoiceData.month
     ) {
-      alert("Fill required fields");
+      alert("Please fill in all required fields to generate an invoice.");
       return;
     }
 
@@ -360,7 +363,7 @@ export default function BillingPage() {
       const data = await res.json();
       if (!res.ok || !data.ok) {
         console.error("handleGenerateInvoice backend err:", data);
-        alert("Error generating invoice");
+        alert("Unable to generate the invoice. Please try again.");
         return;
       }
 
@@ -369,20 +372,23 @@ export default function BillingPage() {
 
       setPayments((prev) => [saved, ...prev]);
       setShowInvoice(false);
+
+     
+      alert("Invoice has been generated successfully.");
     } catch (err) {
       console.error("handleGenerateInvoice err", err);
-      alert("Network error");
+      alert("Network error. Please try again in a moment.");
     }
   }
 
- 
   function openView(p) {
     setViewPayment(p);
     setShowView(true);
   }
 
+  
   function sendReminder() {
-    alert("Reminder sent to resident.");
+    alert("A payment reminder has been sent to the resident.");
   }
 
   function printInvoice() {
@@ -398,10 +404,9 @@ export default function BillingPage() {
     }
   }
 
-  
   return (
     <main className="p-6 bg-gray-50 min-h-screen">
-     
+    
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-2xl font-semibold">Billing & Payments</h1>
@@ -410,6 +415,7 @@ export default function BillingPage() {
           </p>
         </div>
 
+        
         <div className="flex items-center gap-3">
           <button
             onClick={() => {
@@ -428,16 +434,10 @@ export default function BillingPage() {
           >
             Generate Invoice
           </button>
-          <button
-            onClick={() => setShowAdd(true)}
-            className="px-4 py-2 border rounded"
-          >
-            Add
-          </button>
         </div>
       </div>
 
-      
+    
       <section className="grid grid-cols-1 sm:grid-cols-4 gap-4 mt-6">
         <Card>
           <div className="text-xs text-gray-500">Total Payments</div>
@@ -466,7 +466,7 @@ export default function BillingPage() {
         </Card>
       </section>
 
-      {/* table */}
+   
       <Card title="Payment History" className="mt-6">
         <div className="flex gap-3 mb-4">
           <input
@@ -563,7 +563,10 @@ export default function BillingPage() {
                                       : x
                                   )
                                 );
-                                alert("Marked as Paid");
+                            
+                                alert(
+                                  "Payment status has been updated to Paid."
+                                );
                               } catch (err) {
                                 alert(
                                   "Error updating payment: " +
@@ -604,7 +607,7 @@ export default function BillingPage() {
         )}
       </Card>
 
-      
+     
       {payNowOpen && payNowTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
@@ -638,7 +641,7 @@ export default function BillingPage() {
               </button>
             </div>
 
-           
+            
             <div
               className="p-4 border-b"
               style={{
@@ -668,16 +671,16 @@ export default function BillingPage() {
               </div>
             </div>
 
-            
+           
             <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-              
+            
               <div className="lg:col-span-2">
                 <div className="mb-3 text-sm font-semibold text-slate-700">
                   Payment Method
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                
+                  
                   <label
                     className={`flex items-center gap-3 p-3 rounded-lg ${
                       paymentMethod === "Card"
@@ -735,7 +738,7 @@ export default function BillingPage() {
                     </div>
                   </label>
 
-                 
+                  
                   <label
                     className={`flex items-center gap-3 p-3 rounded-lg ${
                       paymentMethod === "Cash"
@@ -758,7 +761,7 @@ export default function BillingPage() {
                     </div>
                   </label>
 
-                
+                  
                   <label
                     className={`flex items-center gap-3 p-3 rounded-lg ${
                       paymentMethod === "UPI"
@@ -878,7 +881,7 @@ export default function BillingPage() {
                 </div>
               </div>
 
-             
+            
               <aside className="order-first lg:order-last">
                 <div className="border rounded-lg p-4 shadow-sm bg-white w-full">
                   <div className="text-xs text-slate-500">Invoice</div>
@@ -1072,7 +1075,7 @@ export default function BillingPage() {
         </div>
       )}
 
-    
+      
       {showAdd && (
         <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-slate-900/40" />
@@ -1201,7 +1204,7 @@ export default function BillingPage() {
         </div>
       )}
 
-      
+     
       {showInvoice && (
         <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-slate-900/40" />
