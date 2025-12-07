@@ -1,5 +1,7 @@
+
 import React, { useEffect, useMemo, useState } from "react";
 import Card from "../components/Card";
+import StatusModal from "../components/StatusModal";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
@@ -89,6 +91,24 @@ export default function BillingPage() {
   const [cardName, setCardName] = useState("");
   const [authorize, setAuthorize] = useState(false);
 
+ 
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalType, setModalType] = useState("success"); 
+  const [modalMessage, setModalMessage] = useState("");
+
+  function showSuccess(msg) {
+    setModalType("success");
+    setModalMessage(msg);
+    setModalOpen(true);
+  }
+  function showError(msg) {
+    setModalType("error");
+    setModalMessage(
+      msg || "Something went wrong. Please try again in a moment."
+    );
+    setModalOpen(true);
+  }
+
   
   useEffect(() => {
     let mounted = true;
@@ -150,7 +170,7 @@ export default function BillingPage() {
     });
   }, [payments, search, statusFilter]);
 
-  
+ 
   async function markAsPaid(id) {
     if (!id) throw new Error("Invoice id missing");
     const url = `${API_BASE}/api/billing/${id}/pay`;
@@ -180,7 +200,7 @@ export default function BillingPage() {
     return data?.payment ?? null;
   }
 
-  
+ 
   function openPayNow(p) {
     setPayNowTarget(p);
     setPayNowOpen(true);
@@ -199,11 +219,11 @@ export default function BillingPage() {
 
     if (method === "Card") {
       if (!authorize) {
-        alert("Please authorize this payment by selecting the checkbox.");
+        showError("Please authorize this payment by selecting the checkbox.");
         return;
       }
       if (!cardNumber || !expiry || !cvv || !cardName) {
-        alert("Please complete all card details before proceeding.");
+        showError("Please complete all card details before proceeding.");
         return;
       }
     }
@@ -222,7 +242,7 @@ export default function BillingPage() {
     };
 
     try {
-     
+      
       try {
         const r1 = await fetch(`${API_BASE}/api/payments`, {
           method: "POST",
@@ -255,8 +275,7 @@ export default function BillingPage() {
         )
       );
 
-      
-      alert("Payment has been processed successfully.");
+      showSuccess("Payment has been processed successfully.");
 
       setPaymentMethod("Card");
       setCardNumber("");
@@ -268,7 +287,7 @@ export default function BillingPage() {
       setPayNowTarget(null);
     } catch (err) {
       console.error("confirmPayNow err", err);
-      alert("Payment failed: " + (err.message || "Unknown error"));
+      showError("Payment could not be processed. Please try again.");
     } finally {
       setPayNowProcessing(false);
     }
@@ -284,7 +303,7 @@ export default function BillingPage() {
       !addForm.amount ||
       !addForm.month
     ) {
-      alert("Please fill in all required fields.");
+      showError("Please fill in all required fields.");
       return;
     }
 
@@ -311,7 +330,7 @@ export default function BillingPage() {
       const data = await res.json();
       if (!res.ok || !data.ok) {
         console.error("submitAdd backend err:", data);
-        alert("Unable to save the payment. Please try again.");
+        showError("Unable to save the payment. Please try again.");
         return;
       }
 
@@ -320,13 +339,14 @@ export default function BillingPage() {
 
       setPayments((prev) => [saved, ...prev]);
       setShowAdd(false);
+      showSuccess("Payment has been added successfully.");
     } catch (err) {
       console.error("submitAdd err", err);
-      alert("Network error. Please try again in a moment.");
+      showError("Network error. Please try again in a moment.");
     }
   }
 
-
+  
   async function handleGenerateInvoice(e) {
     e.preventDefault();
 
@@ -336,7 +356,7 @@ export default function BillingPage() {
       !invoiceData.amount ||
       !invoiceData.month
     ) {
-      alert("Please fill in all required fields to generate an invoice.");
+      showError("Please fill in all required fields to generate an invoice.");
       return;
     }
 
@@ -363,7 +383,7 @@ export default function BillingPage() {
       const data = await res.json();
       if (!res.ok || !data.ok) {
         console.error("handleGenerateInvoice backend err:", data);
-        alert("Unable to generate the invoice. Please try again.");
+        showError("Unable to generate the invoice. Please try again.");
         return;
       }
 
@@ -373,11 +393,10 @@ export default function BillingPage() {
       setPayments((prev) => [saved, ...prev]);
       setShowInvoice(false);
 
-     
-      alert("Invoice has been generated successfully.");
+      showSuccess("Invoice has been generated successfully.");
     } catch (err) {
       console.error("handleGenerateInvoice err", err);
-      alert("Network error. Please try again in a moment.");
+      showError("Network error. Please try again in a moment.");
     }
   }
 
@@ -388,11 +407,7 @@ export default function BillingPage() {
 
   
   function sendReminder() {
-    alert("A payment reminder has been sent to the resident.");
-  }
-
-  function printInvoice() {
-    window.print();
+    showSuccess("A payment reminder has been sent to the resident.");
   }
 
   function formatDateForInput(iso) {
@@ -406,7 +421,7 @@ export default function BillingPage() {
 
   return (
     <main className="p-6 bg-gray-50 min-h-screen">
-    
+   
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-2xl font-semibold">Billing & Payments</h1>
@@ -437,7 +452,7 @@ export default function BillingPage() {
         </div>
       </div>
 
-    
+     
       <section className="grid grid-cols-1 sm:grid-cols-4 gap-4 mt-6">
         <Card>
           <div className="text-xs text-gray-500">Total Payments</div>
@@ -466,7 +481,7 @@ export default function BillingPage() {
         </Card>
       </section>
 
-   
+      
       <Card title="Payment History" className="mt-6">
         <div className="flex gap-3 mb-4">
           <input
@@ -563,14 +578,12 @@ export default function BillingPage() {
                                       : x
                                   )
                                 );
-                            
-                                alert(
+                                showSuccess(
                                   "Payment status has been updated to Paid."
                                 );
                               } catch (err) {
-                                alert(
-                                  "Error updating payment: " +
-                                    (err.message || "")
+                                showError(
+                                  "Error updating payment. Please try again."
                                 );
                               }
                             }}
@@ -607,12 +620,12 @@ export default function BillingPage() {
         )}
       </Card>
 
-     
+      
       {payNowOpen && payNowTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div className="relative z-10 bg-white rounded-2xl shadow-[0_30px_60px_rgba(2,6,23,0.35)] w-full max-w-3xl mx-auto border border-slate-100 overflow-hidden">
-            
+          
             <div
               className="flex items-start justify-between p-5 border-b"
               style={{
@@ -673,14 +686,14 @@ export default function BillingPage() {
 
            
             <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
+              
               <div className="lg:col-span-2">
                 <div className="mb-3 text-sm font-semibold text-slate-700">
                   Payment Method
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  
+                
                   <label
                     className={`flex items-center gap-3 p-3 rounded-lg ${
                       paymentMethod === "Card"
@@ -710,7 +723,7 @@ export default function BillingPage() {
                     </div>
                   </label>
 
-                  
+                 
                   <label
                     className={`flex items-center gap-3 p-3 rounded-lg ${
                       paymentMethod === "PayPal"
@@ -738,7 +751,7 @@ export default function BillingPage() {
                     </div>
                   </label>
 
-                  
+              
                   <label
                     className={`flex items-center gap-3 p-3 rounded-lg ${
                       paymentMethod === "Cash"
@@ -761,7 +774,7 @@ export default function BillingPage() {
                     </div>
                   </label>
 
-                  
+               
                   <label
                     className={`flex items-center gap-3 p-3 rounded-lg ${
                       paymentMethod === "UPI"
@@ -881,7 +894,7 @@ export default function BillingPage() {
                 </div>
               </div>
 
-            
+             
               <aside className="order-first lg:order-last">
                 <div className="border rounded-lg p-4 shadow-sm bg-white w-full">
                   <div className="text-xs text-slate-500">Invoice</div>
@@ -956,7 +969,7 @@ export default function BillingPage() {
         </div>
       )}
 
-      
+     
       {showView && viewPayment && (
         <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" />
@@ -1374,6 +1387,14 @@ export default function BillingPage() {
           </div>
         </div>
       )}
+
+     
+      <StatusModal
+        open={modalOpen}
+        type={modalType}
+        message={modalMessage}
+        onClose={() => setModalOpen(false)}
+      />
     </main>
   );
 }
