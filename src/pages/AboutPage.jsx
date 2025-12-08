@@ -119,10 +119,9 @@ export default function AboutPage() {
               "Tailwind CSS",
               "Node.js",
               "Express",
-              "MongoDB / SQL",
+              "MongoDB",
               "JWT",
-              "Razorpay (optional)",
-              "Vercel / Render",
+              "Render",
             ].map((t) => (
               <span
                 key={t}
