@@ -5,6 +5,7 @@ import StatusModal from "../components/StatusModal";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
+
 function pad(n) {
   return String(n).padStart(2, "0");
 }
@@ -17,7 +18,7 @@ function invoiceFallback() {
   const mm = pad(now.getMinutes());
   const ss = pad(now.getSeconds());
   const rand = Math.floor(1000 + Math.random() * 9000);
-  return `INV-${y}${m}${d}-${hh}${mm}${ss}-${rand}`;
+  return "INV-" + y + m + d + "-" + hh + mm + ss + "-" + rand;
 }
 function addDaysISO(days) {
   const d = new Date();
@@ -29,19 +30,29 @@ function formatCurrency(amount) {
   return "₹" + Number(amount).toLocaleString("en-IN");
 }
 
-function StatusChip({ status }) {
+function StatusChip(props) {
+  const status = props.status;
   const base =
     "inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold";
-  if (status === "Paid")
+
+  if (status === "Paid") {
     return (
-      <span className={base + " bg-emerald-50 text-emerald-700"}>✔ Paid</span>
+      <span className={base + " bg-emerald-50 text-emerald-700"}>
+        ✔ Paid
+      </span>
     );
-  if (status === "Pending")
+  }
+  if (status === "Pending") {
     return (
-      <span className={base + " bg-amber-50 text-amber-700"}>⏳ Pending</span>
+      <span className={base + " bg-amber-50 text-amber-700"}>
+        ⏳ Pending
+      </span>
     );
+  }
   return (
-    <span className={base + " bg-rose-50 text-rose-700"}>⚠ Overdue</span>
+    <span className={base + " bg-rose-50 text-rose-700"}>
+      ⚠ Overdue
+    </span>
   );
 }
 
@@ -91,9 +102,8 @@ export default function BillingPage() {
   const [cardName, setCardName] = useState("");
   const [authorize, setAuthorize] = useState(false);
 
- 
   const [modalOpen, setModalOpen] = useState(false);
-  const [modalType, setModalType] = useState("success"); 
+  const [modalType, setModalType] = useState("success");
   const [modalMessage, setModalMessage] = useState("");
 
   function showSuccess(msg) {
@@ -104,27 +114,32 @@ export default function BillingPage() {
   function showError(msg) {
     setModalType("error");
     setModalMessage(
-      msg || "Something went wrong. Please try again in a moment."
+      msg ||
+        "Something went wrong. Please try again in a moment."
     );
     setModalOpen(true);
   }
 
-  
-  useEffect(() => {
+
+  useEffect(function () {
     let mounted = true;
+
     async function load() {
       setLoading(true);
       setError("");
 
       try {
-        const res = await fetch(`${API_BASE}/api/billing`);
-        if (!res.ok) throw new Error(`Failed to load (${res.status})`);
+        const res = await fetch(API_BASE + "/api/billing");
+        if (!res.ok) {
+          throw new Error("Failed to load (" + res.status + ")");
+        }
         const data = await res.json();
 
-        const list = (data.payments || []).map((p) => ({
-          ...p,
-          invoiceNo: p.invoiceNo || invoiceFallback(),
-        }));
+        const list = (data.payments || []).map(function (p) {
+          return Object.assign({}, p, {
+            invoiceNo: p.invoiceNo || invoiceFallback(),
+          });
+        });
 
         if (mounted) setPayments(list);
       } catch (err) {
@@ -134,47 +149,66 @@ export default function BillingPage() {
         if (mounted) setLoading(false);
       }
     }
+
     load();
-    return () => (mounted = false);
+    return function () {
+      mounted = false;
+    };
   }, []);
 
   
-  const stats = useMemo(() => {
-    let total = payments.length;
-    let totalAmount = 0;
-    let paid = 0;
-    let pending = 0;
+  const stats = useMemo(
+    function () {
+      var total = payments.length;
+      var totalAmount = 0;
+      var paid = 0;
+      var pending = 0;
 
-    payments.forEach((p) => {
-      const amt = Number(p.amount || 0);
-      totalAmount += amt;
-      if (p.status === "Paid") paid += amt;
-      if (p.status === "Pending") pending += amt;
-    });
+      payments.forEach(function (p) {
+        var amt = Number(p.amount || 0);
+        totalAmount += amt;
+        if (p.status === "Paid") paid += amt;
+        if (p.status === "Pending") pending += amt;
+      });
 
-    return { total, totalAmount, paid, pending };
-  }, [payments]);
+      return {
+        total: total,
+        totalAmount: totalAmount,
+        paid: paid,
+        pending: pending,
+      };
+    },
+    [payments]
+  );
 
   
-  const filtered = useMemo(() => {
-    const q = (search || "").toLowerCase();
-    return payments.filter((p) => {
-      const matchText =
-        !q ||
-        (p.residentName || "").toLowerCase().includes(q) ||
-        String(p.roomNumber || "").toLowerCase().includes(q) ||
-        (p.month || "").toLowerCase().includes(q);
+  const filtered = useMemo(
+    function () {
+      const q = (search || "").toLowerCase();
+      return payments.filter(function (p) {
+        const matchText =
+          !q ||
+          (p.residentName || "")
+            .toLowerCase()
+            .indexOf(q) !== -1 ||
+          String(p.roomNumber || "")
+            .toLowerCase()
+            .indexOf(q) !== -1 ||
+          (p.month || "").toLowerCase().indexOf(q) !== -1;
 
-      const matchStatus = statusFilter === "all" || p.status === statusFilter;
-      return matchText && matchStatus;
-    });
-  }, [payments, search, statusFilter]);
+        const matchStatus =
+          statusFilter === "all" || p.status === statusFilter;
 
- 
+        return matchText && matchStatus;
+      });
+    },
+    [payments, search, statusFilter]
+  );
+
+  
   async function markAsPaid(id) {
     if (!id) throw new Error("Invoice id missing");
-    const url = `${API_BASE}/api/billing/${id}/pay`;
-    console.log("PATCH ->", url);
+    const url = API_BASE + "/api/billing/" + id + "/pay";
 
     const res = await fetch(url, {
       method: "PATCH",
@@ -182,25 +216,35 @@ export default function BillingPage() {
       body: JSON.stringify({ method: "Manual" }),
     });
 
-    const text = await res.text().catch(() => "");
-    let data = null;
+    let text = "";
+    try {
+      text = await res.text();
+    } catch (e) {}
+
+    var data = null;
     try {
       data = text ? JSON.parse(text) : null;
-    } catch {
+    } catch (e2) {
       data = null;
     }
 
     if (!res.ok || (data && data.ok === false)) {
       const msg =
         (data && data.error) ||
-        `PATCH ${url} -> ${res.status} ${res.statusText} ${text}`;
+        "PATCH " +
+          url +
+          " -> " +
+          res.status +
+          " " +
+          res.statusText +
+          " " +
+          text;
       throw new Error(msg);
     }
 
-    return data?.payment ?? null;
+    return (data && data.payment) || null;
   }
 
- 
   function openPayNow(p) {
     setPayNowTarget(p);
     setPayNowOpen(true);
@@ -212,18 +256,22 @@ export default function BillingPage() {
     setAuthorize(false);
   }
 
-  
   async function confirmPayNow(methodOverride) {
     if (!payNowTarget) return;
+
     const method = methodOverride || paymentMethod || "Mock";
 
     if (method === "Card") {
       if (!authorize) {
-        showError("Please authorize this payment by selecting the checkbox.");
+        showError(
+          "Please authorize this payment by selecting the checkbox."
+        );
         return;
       }
       if (!cardNumber || !expiry || !cvv || !cardName) {
-        showError("Please complete all card details before proceeding.");
+        showError(
+          "Please complete all card details before proceeding."
+        );
         return;
       }
     }
@@ -234,9 +282,9 @@ export default function BillingPage() {
       invoiceId: payNowTarget._id,
       residentId: payNowTarget.residentId || "",
       amount: Number(payNowTarget.amount || 0),
-      method,
-      providerPaymentId: `mock_pay_${Date.now()}`,
-      providerOrderId: `mock_order_${Date.now()}`,
+      method: method,
+      providerPaymentId: "mock_pay_" + Date.now(),
+      providerOrderId: "mock_order_" + Date.now(),
       status: "Success",
       meta: { mock: true },
     };
@@ -244,7 +292,7 @@ export default function BillingPage() {
     try {
       
       try {
-        const r1 = await fetch(`${API_BASE}/api/payments`, {
+        const r1 = await fetch(API_BASE + "/api/payments", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -252,28 +300,31 @@ export default function BillingPage() {
         if (r1.ok) {
           try {
             const j = await r1.json();
-            if (!j.ok) console.log("payments not ok", j);
-          } catch {}
+            if (j && j.ok === false) {
+              console.log("payments not ok", j);
+            }
+          } catch (e) {}
         }
-      } catch (e) {
-        console.info("POST /api/payments failed (dev fallback):", e?.message);
+      } catch (e1) {
+        console.info(
+          "POST /api/payments failed (dev fallback):",
+          e1 && e1.message
+        );
       }
 
       const updated = await markAsPaid(payNowTarget._id);
 
-      setPayments((prev) =>
-        prev.map((p) =>
-          p._id === payNowTarget._id
-            ? {
-                ...p,
-                status: "Paid",
-                paidOn:
-                  (updated && updated.paidOn) ||
-                  new Date().toISOString().slice(0, 10),
-              }
-            : p
-        )
-      );
+      setPayments(function (prev) {
+        return prev.map(function (p) {
+          if (p._id !== payNowTarget._id) return p;
+          return Object.assign({}, p, {
+            status: "Paid",
+            paidOn:
+              (updated && updated.paidOn) ||
+              new Date().toISOString().slice(0, 10),
+          });
+        });
+      });
 
       showSuccess("Payment has been processed successfully.");
 
@@ -287,13 +338,15 @@ export default function BillingPage() {
       setPayNowTarget(null);
     } catch (err) {
       console.error("confirmPayNow err", err);
-      showError("Payment could not be processed. Please try again.");
+      showError(
+        "Payment could not be processed. Please try again."
+      );
     } finally {
       setPayNowProcessing(false);
     }
   }
 
-  
+ 
   async function submitAdd(e) {
     e.preventDefault();
 
@@ -321,23 +374,27 @@ export default function BillingPage() {
     };
 
     try {
-      const res = await fetch(`${API_BASE}/api/billing`, {
+      const res = await fetch(API_BASE + "/api/billing", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-
       const data = await res.json();
+
       if (!res.ok || !data.ok) {
         console.error("submitAdd backend err:", data);
-        showError("Unable to save the payment. Please try again.");
+        showError(
+          "Unable to save the payment. Please try again."
+        );
         return;
       }
 
       const saved = data.payment || payload;
       saved.invoiceNo = saved.invoiceNo || invoiceFallback();
 
-      setPayments((prev) => [saved, ...prev]);
+      setPayments(function (prev) {
+        return [saved].concat(prev);
+      });
       setShowAdd(false);
       showSuccess("Payment has been added successfully.");
     } catch (err) {
@@ -356,7 +413,9 @@ export default function BillingPage() {
       !invoiceData.amount ||
       !invoiceData.month
     ) {
-      showError("Please fill in all required fields to generate an invoice.");
+      showError(
+        "Please fill in all required fields to generate an invoice."
+      );
       return;
     }
 
@@ -370,29 +429,36 @@ export default function BillingPage() {
       dueDate: invoiceData.dueDate || addDaysISO(30),
       paidOn: "",
       notes: invoiceData.notes || "",
-      invoiceNo: invoiceData.invoiceNo || invoiceFallback(),
+      invoiceNo:
+        invoiceData.invoiceNo || invoiceFallback(),
     };
 
     try {
-      const res = await fetch(`${API_BASE}/api/billing`, {
+      const res = await fetch(API_BASE + "/api/billing", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-
       const data = await res.json();
+
       if (!res.ok || !data.ok) {
-        console.error("handleGenerateInvoice backend err:", data);
-        showError("Unable to generate the invoice. Please try again.");
+        console.error(
+          "handleGenerateInvoice backend err:",
+          data
+        );
+        showError(
+          "Unable to generate the invoice. Please try again."
+        );
         return;
       }
 
       const saved = data.payment || payload;
       saved.invoiceNo = saved.invoiceNo || invoiceFallback();
 
-      setPayments((prev) => [saved, ...prev]);
+      setPayments(function (prev) {
+        return [saved].concat(prev);
+      });
       setShowInvoice(false);
-
       showSuccess("Invoice has been generated successfully.");
     } catch (err) {
       console.error("handleGenerateInvoice err", err);
@@ -405,35 +471,35 @@ export default function BillingPage() {
     setShowView(true);
   }
 
-  
   function sendReminder() {
-    showSuccess("A payment reminder has been sent to the resident.");
+    showSuccess(
+      "A payment reminder has been sent to the resident."
+    );
   }
 
   function formatDateForInput(iso) {
     if (!iso) return "";
     try {
       return new Date(iso).toISOString().slice(0, 10);
-    } catch {
+    } catch (e) {
       return iso;
     }
   }
 
+  
   return (
-    <main className="p-6 bg-gray-50 min-h-screen">
-   
-      <div className="flex justify-between items-start">
+    <main className="p-4 sm:p-6 bg-gray-50 min-h-screen space-y-6">
+    
+      <div className="flex justify-between items-start flex-wrap gap-3">
         <div>
-        
           <p className="text-sm text-gray-500">
             Track room fees &amp; invoices
           </p>
         </div>
 
-        
         <div className="flex items-center gap-3">
           <button
-            onClick={() => {
+            onClick={function () {
               setInvoiceData({
                 invoiceNo: invoiceFallback(),
                 residentName: "",
@@ -445,22 +511,26 @@ export default function BillingPage() {
               });
               setShowInvoice(true);
             }}
-            className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded shadow"
+            className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded shadow text-sm"
           >
             Generate Invoice
           </button>
         </div>
       </div>
 
-     
-      <section className="grid grid-cols-1 sm:grid-cols-4 gap-4 mt-6">
+      
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
-          <div className="text-xs text-gray-500">Total Payments</div>
+          <div className="text-xs text-gray-500">
+            Total Payments
+          </div>
           <div className="text-3xl font-bold">{stats.total}</div>
         </Card>
 
         <Card>
-          <div className="text-xs text-gray-500">Total Amount</div>
+          <div className="text-xs text-gray-500">
+            Total Amount
+          </div>
           <div className="text-2xl font-bold text-purple-600">
             {formatCurrency(stats.totalAmount)}
           </div>
@@ -481,21 +551,25 @@ export default function BillingPage() {
         </Card>
       </section>
 
-      
-      <Card title="Payment History" className="mt-6">
-        <div className="flex gap-3 mb-4">
+     
+      <Card title="Payment History">
+        <div className="flex flex-wrap gap-3 mb-4 items-center">
           <input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={function (e) {
+              setSearch(e.target.value);
+            }}
             placeholder="Search by resident, room or month..."
-            className="flex-1 border px-3 py-2 rounded"
+            className="flex-1 min-w-[220px] border px-3 py-2 rounded text-sm"
             aria-label="Search payments"
           />
 
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="border px-3 py-2 rounded"
+            onChange={function (e) {
+              setStatusFilter(e.target.value);
+            }}
+            className="border px-3 py-2 rounded text-sm"
             aria-label="Filter status"
           >
             <option value="all">All Status</option>
@@ -506,9 +580,15 @@ export default function BillingPage() {
         </div>
 
         {loading && (
-          <p className="text-center py-6 text-gray-500">Loading…</p>
+          <p className="text-center py-6 text-gray-500 text-sm">
+            Loading…
+          </p>
         )}
-        {error && <p className="text-center py-6 text-red-500">{error}</p>}
+        {error && (
+          <p className="text-center py-6 text-red-500 text-sm">
+            {error}
+          </p>
+        )}
 
         {!loading && !error && (
           <div className="overflow-x-auto">
@@ -526,89 +606,105 @@ export default function BillingPage() {
               </thead>
 
               <tbody>
-                {filtered.map((p) => (
-                  <tr key={p._id} className="border-b">
-                    <td className="px-3 py-3 max-w-[220px]">{p.invoiceNo}</td>
-                    <td className="px-3 py-3">{p.residentName}</td>
-                    <td className="px-3 py-3">{p.roomNumber}</td>
-                    <td className="px-3 py-3">
-                      {formatCurrency(p.amount)}
-                    </td>
-                    <td className="px-3 py-3">
-                      {p.dueDate
-                        ? new Date(p.dueDate).toLocaleDateString()
-                        : "-"}
-                    </td>
-                    <td className="px-3 py-3">
-                      <StatusChip status={p.status} />
-                    </td>
+                {filtered.map(function (p) {
+                  return (
+                    <tr key={p._id} className="border-b">
+                      <td className="px-3 py-3 max-w-[220px]">
+                        {p.invoiceNo}
+                      </td>
+                      <td className="px-3 py-3">
+                        {p.residentName}
+                      </td>
+                      <td className="px-3 py-3">{p.roomNumber}</td>
+                      <td className="px-3 py-3">
+                        {formatCurrency(p.amount)}
+                      </td>
+                      <td className="px-3 py-3">
+                        {p.dueDate
+                          ? new Date(
+                              p.dueDate
+                            ).toLocaleDateString()
+                          : "-"}
+                      </td>
+                      <td className="px-3 py-3">
+                        <StatusChip status={p.status} />
+                      </td>
 
-                    <td className="px-3 py-3 flex gap-2">
-                      <button
-                        onClick={() => openView(p)}
-                        className="px-2 py-1 text-xs bg-indigo-50 text-indigo-600 rounded"
-                      >
-                        View
-                      </button>
-
-                      {p.status !== "Paid" && (
-                        <>
+                      <td className="px-3 py-3">
+                        <div className="flex flex-wrap gap-2">
                           <button
-                            onClick={() => openPayNow(p)}
-                            className="px-2 py-1 text-xs bg-green-600 text-white rounded"
+                            onClick={function () {
+                              openView(p);
+                            }}
+                            className="px-2 py-1 text-xs bg-indigo-50 text-indigo-600 rounded"
                           >
-                            Pay Now
+                            View
                           </button>
-                          <button
-                            onClick={async () => {
-                              try {
-                                const upd = await markAsPaid(p._id);
-                                setPayments((prev) =>
-                                  prev.map((x) =>
-                                    x._id === p._id
-                                      ? {
-                                          ...x,
+
+                          {p.status !== "Paid" && (
+                            <>
+                              <button
+                                onClick={function () {
+                                  openPayNow(p);
+                                }}
+                                className="px-2 py-1 text-xs bg-green-600 text-white rounded"
+                              >
+                                Pay Now
+                              </button>
+                              <button
+                                onClick={async function () {
+                                  try {
+                                    const upd =
+                                      await markAsPaid(p._id);
+                                    setPayments(function (prev) {
+                                      return prev.map(function (x) {
+                                        if (x._id !== p._id) return x;
+                                        return Object.assign({}, x, {
                                           status: "Paid",
                                           paidOn:
-                                            (upd && upd.paidOn) ||
+                                            (upd &&
+                                              upd.paidOn) ||
                                             new Date()
                                               .toISOString()
                                               .slice(0, 10),
-                                        }
-                                      : x
-                                  )
-                                );
-                                showSuccess(
-                                  "Payment status has been updated to Paid."
-                                );
-                              } catch (err) {
-                                showError(
-                                  "Error updating payment. Please try again."
-                                );
-                              }
-                            }}
-                            className="px-2 py-1 text-xs bg-emerald-700 text-white rounded"
-                          >
-                            Mark Paid
-                          </button>
-                        </>
-                      )}
+                                        });
+                                      });
+                                    });
+                                    showSuccess(
+                                      "Payment status has been updated to Paid."
+                                    );
+                                  } catch (err) {
+                                    showError(
+                                      "Error updating payment. Please try again."
+                                    );
+                                  }
+                                }}
+                                className="px-2 py-1 text-xs bg-emerald-700 text-white rounded"
+                              >
+                                Mark Paid
+                              </button>
+                            </>
+                          )}
 
-                      <button
-                        onClick={() => sendReminder(p._id)}
-                        className="px-2 py-1 text-xs bg-amber-50 text-amber-700 rounded"
-                      >
-                        Remind
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                          <button
+                            onClick={function () {
+                              sendReminder();
+                            }}
+                            className="px-2 py-1 text-xs bg-amber-50 text-amber-700 rounded"
+                          >
+                            Remind
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
 
                 {filtered.length === 0 && (
                   <tr>
                     <td
                       colSpan="7"
-                      className="py-6 text-center text-gray-500"
+                      className="py-6 text-center text-gray-500 text-sm"
                     >
                       No records found
                     </td>
@@ -620,12 +716,12 @@ export default function BillingPage() {
         )}
       </Card>
 
-      
+    
       {payNowOpen && payNowTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div className="relative z-10 bg-white rounded-2xl shadow-[0_30px_60px_rgba(2,6,23,0.35)] w-full max-w-3xl mx-auto border border-slate-100 overflow-hidden">
-          
+            
             <div
               className="flex items-start justify-between p-5 border-b"
               style={{
@@ -642,7 +738,7 @@ export default function BillingPage() {
                 </p>
               </div>
               <button
-                onClick={() => {
+                onClick={function () {
                   if (!payNowProcessing) {
                     setPayNowOpen(false);
                     setPayNowTarget(null);
@@ -654,7 +750,7 @@ export default function BillingPage() {
               </button>
             </div>
 
-            
+           
             <div
               className="p-4 border-b"
               style={{
@@ -664,19 +760,25 @@ export default function BillingPage() {
             >
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start text-sm">
                 <div>
-                  <div className="text-xs text-slate-500">Invoice</div>
+                  <div className="text-xs text-slate-500">
+                    Invoice
+                  </div>
                   <div className="font-semibold text-slate-800">
                     {payNowTarget.invoiceNo}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs text-slate-500">Resident</div>
+                  <div className="text-xs text-slate-500">
+                    Resident
+                  </div>
                   <div className="font-semibold text-slate-800">
                     {payNowTarget.residentName}
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-xs text-slate-500">Amount</div>
+                  <div className="text-xs text-slate-500">
+                    Amount
+                  </div>
                   <div className="font-semibold text-sky-900 text-lg">
                     {formatCurrency(payNowTarget.amount)}
                   </div>
@@ -684,29 +786,33 @@ export default function BillingPage() {
               </div>
             </div>
 
-           
+         
             <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-              
+          
               <div className="lg:col-span-2">
                 <div className="mb-3 text-sm font-semibold text-slate-700">
                   Payment Method
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  
                   <label
-                    className={`flex items-center gap-3 p-3 rounded-lg ${
-                      paymentMethod === "Card"
+                    className={
+                      "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition " +
+                      (paymentMethod === "Card"
                         ? "border-2 border-teal-200 bg-teal-50 shadow-sm"
-                        : "border border-slate-200 bg-white"
-                    } cursor-pointer transition`}
+                        : "border border-slate-200 bg-white")
+                    }
                   >
                     <input
                       type="radio"
                       name="pm"
-                      className="form-radio ml-1"
+                      className="ml-1"
                       checked={paymentMethod === "Card"}
-                      onChange={() => setPaymentMethod("Card")}
+                      onChange={function () {
+                        setPaymentMethod("Card");
+                      }}
                     />
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-6 flex items-center justify-center">
@@ -725,18 +831,21 @@ export default function BillingPage() {
 
                  
                   <label
-                    className={`flex items-center gap-3 p-3 rounded-lg ${
-                      paymentMethod === "PayPal"
+                    className={
+                      "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition " +
+                      (paymentMethod === "PayPal"
                         ? "border-2 border-indigo-200 bg-indigo-50 shadow-sm"
-                        : "border border-slate-200 bg-white"
-                    } cursor-pointer transition`}
+                        : "border border-slate-200 bg-white")
+                    }
                   >
                     <input
                       type="radio"
                       name="pm"
-                      className="form-radio ml-1"
+                      className="ml-1"
                       checked={paymentMethod === "PayPal"}
-                      onChange={() => setPaymentMethod("PayPal")}
+                      onChange={function () {
+                        setPaymentMethod("PayPal");
+                      }}
                     />
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-6 flex items-center justify-center">
@@ -751,20 +860,23 @@ export default function BillingPage() {
                     </div>
                   </label>
 
-              
+                 
                   <label
-                    className={`flex items-center gap-3 p-3 rounded-lg ${
-                      paymentMethod === "Cash"
+                    className={
+                      "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition " +
+                      (paymentMethod === "Cash"
                         ? "border-2 border-amber-200 bg-amber-50 shadow-sm"
-                        : "border border-slate-200 bg-white"
-                    } cursor-pointer transition`}
+                        : "border border-slate-200 bg-white")
+                    }
                   >
                     <input
                       type="radio"
                       name="pm"
-                      className="form-radio ml-1"
+                      className="ml-1"
                       checked={paymentMethod === "Cash"}
-                      onChange={() => setPaymentMethod("Cash")}
+                      onChange={function () {
+                        setPaymentMethod("Cash");
+                      }}
                     />
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-6 flex items-center justify-center">
@@ -774,20 +886,23 @@ export default function BillingPage() {
                     </div>
                   </label>
 
-               
+                  
                   <label
-                    className={`flex items-center gap-3 p-3 rounded-lg ${
-                      paymentMethod === "UPI"
+                    className={
+                      "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition " +
+                      (paymentMethod === "UPI"
                         ? "border-2 border-sky-300 bg-sky-50 shadow-sm"
-                        : "border border-slate-200 bg-white"
-                    } cursor-pointer transition`}
+                        : "border border-slate-200 bg-white")
+                    }
                   >
                     <input
                       type="radio"
                       name="pm"
-                      className="form-radio ml-1"
+                      className="ml-1"
                       checked={paymentMethod === "UPI"}
-                      onChange={() => setPaymentMethod("UPI")}
+                      onChange={function () {
+                        setPaymentMethod("UPI");
+                      }}
                     />
                     <div className="text-slate-800">UPI</div>
                   </label>
@@ -799,29 +914,35 @@ export default function BillingPage() {
                     <div className="space-y-3">
                       <input
                         value={cardNumber}
-                        onChange={(e) => setCardNumber(e.target.value)}
+                        onChange={function (e) {
+                          setCardNumber(e.target.value);
+                        }}
                         placeholder="Card Number"
                         className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-100"
                       />
-
                       <div className="flex gap-3">
                         <input
                           value={expiry}
-                          onChange={(e) => setExpiry(e.target.value)}
+                          onChange={function (e) {
+                            setExpiry(e.target.value);
+                          }}
                           placeholder="MM/YY"
                           className="flex-1 border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-100"
                         />
                         <input
                           value={cvv}
-                          onChange={(e) => setCvv(e.target.value)}
+                          onChange={function (e) {
+                            setCvv(e.target.value);
+                          }}
                           placeholder="CVV"
                           className="w-32 border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-100"
                         />
                       </div>
-
                       <input
                         value={cardName}
-                        onChange={(e) => setCardName(e.target.value)}
+                        onChange={function (e) {
+                          setCardName(e.target.value);
+                        }}
                         placeholder="Cardholder Name"
                         className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-100"
                       />
@@ -830,7 +951,9 @@ export default function BillingPage() {
                         <input
                           type="checkbox"
                           checked={authorize}
-                          onChange={(e) => setAuthorize(e.target.checked)}
+                          onChange={function (e) {
+                            setAuthorize(e.target.checked);
+                          }}
                           className="mt-1"
                         />
                         <div className="text-slate-600">
@@ -847,8 +970,12 @@ export default function BillingPage() {
                   {paymentMethod === "UPI" && (
                     <div className="space-y-3">
                       <div className="p-3 border rounded text-sm text-slate-700 bg-white">
-                        <div className="text-xs text-slate-500">UPI ID</div>
-                        <div className="font-medium">your-upi-id@upi</div>
+                        <div className="text-xs text-slate-500">
+                          UPI ID
+                        </div>
+                        <div className="font-medium">
+                          your-upi-id@upi
+                        </div>
                       </div>
 
                       <div className="flex items-center gap-4 mt-2">
@@ -867,10 +994,12 @@ export default function BillingPage() {
                         </div>
 
                         <div className="text-sm text-slate-600">
-                          <div className="font-medium mb-1">Scan & Pay</div>
+                          <div className="font-medium mb-1">
+                            Scan &amp; Pay
+                          </div>
                           <div className="text-xs">
-                            Scan the QR using any UPI app (Google Pay,
-                            PhonePe, Paytm)
+                            Scan the QR using any UPI app (Google
+                            Pay, PhonePe, Paytm)
                           </div>
                           <div className="mt-2 font-medium text-slate-800">
                             your-upi-id@upi
@@ -881,33 +1010,40 @@ export default function BillingPage() {
                   )}
 
                   {paymentMethod === "PayPal" && (
-                    <div className="p-3 border rounded text-sm text-slate-700">
-                      Resident will be redirected to PayPal (simulated).
+                    <div className="p-3 border rounded text-sm text-slate-700 bg-white">
+                      Resident will be redirected to PayPal
+                      (simulated).
                     </div>
                   )}
 
                   {paymentMethod === "Cash" && (
-                    <div className="p-3 border rounded text-sm text-slate-700">
+                    <div className="p-3 border rounded text-sm text-slate-700 bg-white">
                       Collect cash at the office and mark as Paid.
                     </div>
                   )}
                 </div>
               </div>
 
-             
+           
               <aside className="order-first lg:order-last">
                 <div className="border rounded-lg p-4 shadow-sm bg-white w-full">
-                  <div className="text-xs text-slate-500">Invoice</div>
+                  <div className="text-xs text-slate-500">
+                    Invoice
+                  </div>
                   <div className="font-semibold mb-3 text-slate-800">
                     {payNowTarget.invoiceNo}
                   </div>
 
-                  <div className="text-xs text-slate-500">Resident</div>
+                  <div className="text-xs text-slate-500">
+                    Resident
+                  </div>
                   <div className="font-medium mb-3">
                     {payNowTarget.residentName}
                   </div>
 
-                  <div className="text-xs text-slate-500">Amount</div>
+                  <div className="text-xs text-slate-500">
+                    Amount
+                  </div>
                   <div className="text-2xl font-bold text-sky-800 mb-4">
                     {formatCurrency(payNowTarget.amount)}
                   </div>
@@ -930,7 +1066,8 @@ export default function BillingPage() {
                   </table>
 
                   <div className="mt-4 text-xs text-slate-500">
-                    Paid via selected method will update the invoice status.
+                    Paid via selected method will update the invoice
+                    status.
                   </div>
                 </div>
               </aside>
@@ -939,37 +1076,39 @@ export default function BillingPage() {
            
             <div className="flex items-center justify-end gap-3 p-4 border-t">
               <button
-                onClick={() => {
+                onClick={function () {
                   if (!payNowProcessing) {
                     setPayNowOpen(false);
                     setPayNowTarget(null);
                   }
                 }}
-                className="px-4 py-2 border rounded text-slate-700"
+                className="px-4 py-2 border rounded text-slate-700 text-sm"
               >
                 Cancel
               </button>
-
               <button
-                onClick={() => {
+                onClick={function () {
                   if (payNowProcessing) return;
                   confirmPayNow(paymentMethod);
                 }}
-                className={`px-4 py-2 rounded text-white ${
-                  payNowProcessing
+                className={
+                  "px-4 py-2 rounded text-white text-sm " +
+                  (payNowProcessing
                     ? "bg-emerald-300"
-                    : "bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700"
-                }`}
+                    : "bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700")
+                }
                 aria-busy={payNowProcessing}
               >
-                {payNowProcessing ? "Processing..." : "Process Payment"}
+                {payNowProcessing
+                  ? "Processing..."
+                  : "Process Payment"}
               </button>
             </div>
           </div>
         </div>
       )}
 
-     
+      
       {showView && viewPayment && (
         <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" />
@@ -990,7 +1129,9 @@ export default function BillingPage() {
               <div className="flex items-center gap-2">
                 <StatusChip status={viewPayment.status} />
                 <button
-                  onClick={() => setShowView(false)}
+                  onClick={function () {
+                    setShowView(false);
+                  }}
                   className="ml-1 text-slate-400 hover:text-slate-600 rounded-full p-1 hover:bg-slate-100 transition"
                 >
                   ✕
@@ -1033,7 +1174,9 @@ export default function BillingPage() {
                   </p>
                   <p className="font-medium text-slate-800">
                     {viewPayment.dueDate
-                      ? new Date(viewPayment.dueDate).toLocaleDateString()
+                      ? new Date(
+                          viewPayment.dueDate
+                        ).toLocaleDateString()
                       : "-"}
                   </p>
                 </div>
@@ -1062,7 +1205,8 @@ export default function BillingPage() {
                   Notes
                 </p>
                 <p className="text-sm text-slate-700 whitespace-pre-wrap">
-                  {viewPayment.notes && viewPayment.notes.trim() !== ""
+                  {viewPayment.notes &&
+                  viewPayment.notes.trim() !== ""
                     ? viewPayment.notes
                     : "No special notes for this payment."}
                 </p>
@@ -1073,12 +1217,16 @@ export default function BillingPage() {
               <p className="text-[11px] text-slate-500">
                 Created on{" "}
                 {viewPayment.createdAt
-                  ? new Date(viewPayment.createdAt).toLocaleDateString()
+                  ? new Date(
+                      viewPayment.createdAt
+                    ).toLocaleDateString()
                   : "-"}
               </p>
 
               <button
-                onClick={() => setShowView(false)}
+                onClick={function () {
+                  setShowView(false);
+                }}
                 className="px-4 py-1.5 text-sm rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100 transition"
               >
                 Close
@@ -1088,7 +1236,7 @@ export default function BillingPage() {
         </div>
       )}
 
-      
+    
       {showAdd && (
         <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-slate-900/40" />
@@ -1098,7 +1246,9 @@ export default function BillingPage() {
                 Add Payment
               </h3>
               <button
-                onClick={() => setShowAdd(false)}
+                onClick={function () {
+                  setShowAdd(false);
+                }}
                 className="text-slate-400 hover:text-slate-600"
               >
                 ✕
@@ -1116,9 +1266,13 @@ export default function BillingPage() {
                 </label>
                 <input
                   value={addForm.residentName}
-                  onChange={(e) =>
-                    setAddForm({ ...addForm, residentName: e.target.value })
-                  }
+                  onChange={function (e) {
+                    setAddForm(
+                      Object.assign({}, addForm, {
+                        residentName: e.target.value,
+                      })
+                    );
+                  }}
                   className="w-full border rounded px-3 py-2"
                   required
                 />
@@ -1131,9 +1285,13 @@ export default function BillingPage() {
                   </label>
                   <input
                     value={addForm.roomNumber}
-                    onChange={(e) =>
-                      setAddForm({ ...addForm, roomNumber: e.target.value })
-                    }
+                    onChange={function (e) {
+                      setAddForm(
+                        Object.assign({}, addForm, {
+                          roomNumber: e.target.value,
+                        })
+                      );
+                    }}
                     className="w-full border rounded px-3 py-2"
                     required
                   />
@@ -1144,9 +1302,13 @@ export default function BillingPage() {
                   </label>
                   <input
                     value={addForm.amount}
-                    onChange={(e) =>
-                      setAddForm({ ...addForm, amount: e.target.value })
-                    }
+                    onChange={function (e) {
+                      setAddForm(
+                        Object.assign({}, addForm, {
+                          amount: e.target.value,
+                        })
+                      );
+                    }}
                     className="w-full border rounded px-3 py-2"
                     required
                   />
@@ -1160,9 +1322,13 @@ export default function BillingPage() {
                   </label>
                   <input
                     value={addForm.month}
-                    onChange={(e) =>
-                      setAddForm({ ...addForm, month: e.target.value })
-                    }
+                    onChange={function (e) {
+                      setAddForm(
+                        Object.assign({}, addForm, {
+                          month: e.target.value,
+                        })
+                      );
+                    }}
                     className="w-full border rounded px-3 py-2"
                     placeholder="Dec 2025"
                     required
@@ -1175,9 +1341,13 @@ export default function BillingPage() {
                   <input
                     type="date"
                     value={formatDateForInput(addForm.dueDate)}
-                    onChange={(e) =>
-                      setAddForm({ ...addForm, dueDate: e.target.value })
-                    }
+                    onChange={function (e) {
+                      setAddForm(
+                        Object.assign({}, addForm, {
+                          dueDate: e.target.value,
+                        })
+                      );
+                    }}
                     className="w-full border rounded px-3 py-2"
                   />
                 </div>
@@ -1189,9 +1359,13 @@ export default function BillingPage() {
                 </label>
                 <textarea
                   value={addForm.notes}
-                  onChange={(e) =>
-                    setAddForm({ ...addForm, notes: e.target.value })
-                  }
+                  onChange={function (e) {
+                    setAddForm(
+                      Object.assign({}, addForm, {
+                        notes: e.target.value,
+                      })
+                    );
+                  }}
                   className="w-full border rounded px-3 py-2"
                   rows={2}
                 />
@@ -1200,7 +1374,9 @@ export default function BillingPage() {
               <div className="flex justify-end gap-2 mt-4">
                 <button
                   type="button"
-                  onClick={() => setShowAdd(false)}
+                  onClick={function () {
+                    setShowAdd(false);
+                  }}
                   className="px-3 py-1.5 text-sm border rounded"
                 >
                   Cancel
@@ -1217,7 +1393,6 @@ export default function BillingPage() {
         </div>
       )}
 
-     
       {showInvoice && (
         <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-slate-900/40" />
@@ -1232,7 +1407,9 @@ export default function BillingPage() {
                 </p>
               </div>
               <button
-                onClick={() => setShowInvoice(false)}
+                onClick={function () {
+                  setShowInvoice(false);
+                }}
                 className="text-slate-400 hover:text-slate-600"
               >
                 ✕
@@ -1249,9 +1426,13 @@ export default function BillingPage() {
                 </label>
                 <input
                   value={invoiceData.invoiceNo}
-                  onChange={(e) =>
-                    setInvoiceData({ ...invoiceData, invoiceNo: e.target.value })
-                  }
+                  onChange={function (e) {
+                    setInvoiceData(
+                      Object.assign({}, invoiceData, {
+                        invoiceNo: e.target.value,
+                      })
+                    );
+                  }}
                   className="w-full border rounded px-3 py-2"
                 />
               </div>
@@ -1262,12 +1443,13 @@ export default function BillingPage() {
                 </label>
                 <input
                   value={invoiceData.residentName}
-                  onChange={(e) =>
-                    setInvoiceData({
-                      ...invoiceData,
-                      residentName: e.target.value,
-                    })
-                  }
+                  onChange={function (e) {
+                    setInvoiceData(
+                      Object.assign({}, invoiceData, {
+                        residentName: e.target.value,
+                      })
+                    );
+                  }}
                   className="w-full border rounded px-3 py-2"
                   required
                 />
@@ -1279,12 +1461,13 @@ export default function BillingPage() {
                 </label>
                 <input
                   value={invoiceData.roomNumber}
-                  onChange={(e) =>
-                    setInvoiceData({
-                      ...invoiceData,
-                      roomNumber: e.target.value,
-                    })
-                  }
+                  onChange={function (e) {
+                    setInvoiceData(
+                      Object.assign({}, invoiceData, {
+                        roomNumber: e.target.value,
+                      })
+                    );
+                  }}
                   className="w-full border rounded px-3 py-2"
                   required
                 />
@@ -1296,9 +1479,13 @@ export default function BillingPage() {
                 </label>
                 <input
                   value={invoiceData.amount}
-                  onChange={(e) =>
-                    setInvoiceData({ ...invoiceData, amount: e.target.value })
-                  }
+                  onChange={function (e) {
+                    setInvoiceData(
+                      Object.assign({}, invoiceData, {
+                        amount: e.target.value,
+                      })
+                    );
+                  }}
                   className="w-full border rounded px-3 py-2"
                   required
                 />
@@ -1310,9 +1497,13 @@ export default function BillingPage() {
                 </label>
                 <input
                   value={invoiceData.month}
-                  onChange={(e) =>
-                    setInvoiceData({ ...invoiceData, month: e.target.value })
-                  }
+                  onChange={function (e) {
+                    setInvoiceData(
+                      Object.assign({}, invoiceData, {
+                        month: e.target.value,
+                      })
+                    );
+                  }}
                   className="w-full border rounded px-3 py-2"
                   placeholder="Dec 2025"
                   required
@@ -1325,13 +1516,16 @@ export default function BillingPage() {
                 </label>
                 <input
                   type="date"
-                  value={formatDateForInput(invoiceData.dueDate)}
-                  onChange={(e) =>
-                    setInvoiceData({
-                      ...invoiceData,
-                      dueDate: e.target.value,
-                    })
-                  }
+                  value={formatDateForInput(
+                    invoiceData.dueDate
+                  )}
+                  onChange={function (e) {
+                    setInvoiceData(
+                      Object.assign({}, invoiceData, {
+                        dueDate: e.target.value,
+                      })
+                    );
+                  }}
                   className="w-full border rounded px-3 py-2"
                 />
               </div>
@@ -1342,9 +1536,13 @@ export default function BillingPage() {
                 </label>
                 <textarea
                   value={invoiceData.notes}
-                  onChange={(e) =>
-                    setInvoiceData({ ...invoiceData, notes: e.target.value })
-                  }
+                  onChange={function (e) {
+                    setInvoiceData(
+                      Object.assign({}, invoiceData, {
+                        notes: e.target.value,
+                      })
+                    );
+                  }}
                   className="w-full border rounded px-3 py-2"
                   rows={2}
                 />
@@ -1360,7 +1558,7 @@ export default function BillingPage() {
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() =>
+                    onClick={function () {
                       setInvoiceData({
                         invoiceNo: invoiceFallback(),
                         residentName: "",
@@ -1369,8 +1567,8 @@ export default function BillingPage() {
                         amount: "",
                         dueDate: addDaysISO(30),
                         notes: "Thank you for your payment.",
-                      })
-                    }
+                      });
+                    }}
                     className="px-3 py-1.5 text-sm border rounded"
                   >
                     Reset
@@ -1393,7 +1591,9 @@ export default function BillingPage() {
         open={modalOpen}
         type={modalType}
         message={modalMessage}
-        onClose={() => setModalOpen(false)}
+        onClose={function () {
+          setModalOpen(false);
+        }}
       />
     </main>
   );
