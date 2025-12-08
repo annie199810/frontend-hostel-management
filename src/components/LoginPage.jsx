@@ -22,7 +22,11 @@ export default function LoginPage() {
       const res = await login({ email, password });
 
       if (res && res.ok && res.token) {
-        navigate("/", { replace: true });
+      
+        navigate("/", {
+          replace: true,
+          state: { justLoggedIn: true },
+        });
       } else {
         setError(res?.error || "Invalid credentials");
       }
@@ -34,10 +38,7 @@ export default function LoginPage() {
   }
 
   function goToRegister() {
-    try {
-      logout();
-    } catch (e) {}
-
+    try { logout(); } catch (e) {}
     localStorage.removeItem("token");
     navigate("/register");
   }
@@ -67,30 +68,18 @@ export default function LoginPage() {
               autoComplete="off"
               className="mt-6 space-y-4"
             >
-              
-              <input
-                type="text"
-                name="fakeUsername"
-                autoComplete="username"
-                style={{ display: "none" }}
-              />
-              <input
-                type="password"
-                name="fakePassword"
-                autoComplete="new-password"
-                style={{ display: "none" }}
-              />
+              <input type="text" style={{ display: "none" }} />
+              <input type="password" style={{ display: "none" }} />
 
               <div>
                 <label className="block text-sm text-white/80 mb-2">Email</label>
                 <input
                   type="email"
                   required
-                  autoComplete="off"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@hostel.com"
-                  className="w-full px-4 py-2 rounded-lg bg-white/18 border border-white/12 text-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  className="w-full px-4 py-2 rounded-lg bg-white/18 border border-white/12 text-white"
                 />
               </div>
 
@@ -99,50 +88,27 @@ export default function LoginPage() {
                 <input
                   type="password"
                   required
-                  autoComplete="new-password"
                   value={password}
-                  placeholder="Choose a Password"
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-2 rounded-lg bg-white/18 border border-white/12 text-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  className="w-full px-4 py-2 rounded-lg bg-white/18 border border-white/12 text-white"
                 />
-              </div>
-
-              <div className="flex items-center justify-between text-sm text-white/80">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={remember}
-                    onChange={(e) => setRemember(e.target.checked)}
-                    className="h-4 w-4 rounded bg-white/20 border-white/20 checked:bg-indigo-500"
-                  />
-                  <span>Remember me</span>
-                </label>
-                <button
-                  type="button"
-                  onClick={() => alert("Forgot password flow not implemented")}
-                  className="text-indigo-200 hover:underline"
-                >
-                  Forgot?
-                </button>
               </div>
 
               {error && <div className="text-sm text-rose-400">{error}</div>}
 
-              <div>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-gradient-to-r from-indigo-500 to-indigo-600 text-white font-medium transition-transform hover:scale-[1.01] disabled:opacity-70"
-                >
-                  {loading ? "Signing in…" : "Sign In"}
-                </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full px-4 py-3 rounded-lg bg-gradient-to-r from-indigo-500 to-indigo-600 text-white"
+              >
+                {loading ? "Signing in…" : "Sign In"}
+              </button>
 
-                <div className="text-center mt-3 text-sm text-white/80">
-                  New here?{" "}
-                  <button onClick={goToRegister} className="text-indigo-200 hover:underline">
-                    Create an account
-                  </button>
-                </div>
+              <div className="text-center mt-3 text-sm text-white/80">
+                New here?{" "}
+                <button onClick={goToRegister} className="text-indigo-200 hover:underline">
+                  Create an account
+                </button>
               </div>
             </form>
           </div>
