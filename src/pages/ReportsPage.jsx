@@ -1,3 +1,4 @@
+
 import React, { useEffect, useMemo, useState } from "react";
 import Card from "../components/Card";
 
@@ -16,7 +17,6 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  
   useEffect(function () {
     async function loadData() {
       setLoading(true);
@@ -36,30 +36,29 @@ export default function ReportsPage() {
         ]);
 
         
-        let roomsData = Array.isArray(roomsJson)
+        var roomsData = Array.isArray(roomsJson)
           ? roomsJson
           : Array.isArray(roomsJson.rooms)
           ? roomsJson.rooms
           : [];
         setRooms(roomsData);
 
-        
-        let billsData = Array.isArray(billsJson)
+      
+        var billsData = Array.isArray(billsJson)
           ? billsJson
           : Array.isArray(billsJson.bills)
           ? billsJson.bills
           : [];
         setBills(billsData);
 
-        
-        let maintData = Array.isArray(maintJson)
+       
+        var maintData = Array.isArray(maintJson)
           ? maintJson
           : Array.isArray(maintJson.requests)
           ? maintJson.requests
           : [];
         setMaintenance(maintData);
       } catch (err) {
-       // console.error("Error loading reports data:", err);
         setError("Failed to load reports data");
       } finally {
         setLoading(false);
@@ -69,114 +68,120 @@ export default function ReportsPage() {
     loadData();
   }, []);
 
- 
-
   const billingStats = useMemo(
     function () {
-      let total = 0;
-      let paid = 0;
-      let pending = 0;
-      let overdue = 0;
+      var total = 0;
+      var paid = 0;
+      var pending = 0;
+      var overdue = 0;
 
       (Array.isArray(bills) ? bills : []).forEach(function (b) {
-        const amount = Number(b.amount || b.Amount || 0);
+        var amount = Number(b.amount || b.Amount || 0);
         total += amount;
 
-        const status = (b.status || b.Status || "").toLowerCase();
+        var status = (b.status || b.Status || "").toLowerCase();
         if (status === "paid") paid += amount;
         else if (status === "overdue") overdue += amount;
         else pending += amount;
       });
 
-      return { total, paid, pending, overdue };
+      return { total: total, paid: paid, pending: pending, overdue: overdue };
     },
     [bills]
   );
 
   const monthlyTotals = useMemo(
     function () {
-      const map = {};
+      var map = {};
       (Array.isArray(bills) ? bills : []).forEach(function (b) {
-        const key = b.month || b.Month || "Unknown";
-        const amt = Number(b.amount || b.Amount || 0);
+        var key = b.month || b.Month || "Unknown";
+        var amt = Number(b.amount || b.Amount || 0);
         map[key] = (map[key] || 0) + amt;
       });
 
-      const entries = Object.keys(map).map(function (k) {
+      var entries = Object.keys(map).map(function (k) {
         return { label: k, value: map[k] };
       });
 
-      const max = entries.reduce(
+      var max = entries.reduce(
         function (m, x) {
           return x.value > m ? x.value : m;
         },
         0
       );
 
-      return { entries, max };
+      return { entries: entries, max: max };
     },
     [bills]
   );
 
   const roomStats = useMemo(
     function () {
-      const total = rooms.length;
-      let available = 0;
-      let occupied = 0;
-      let maintenanceCount = 0;
+      var total = rooms.length;
+      var available = 0;
+      var occupied = 0;
+      var maintenanceCount = 0;
 
       (Array.isArray(rooms) ? rooms : []).forEach(function (r) {
-        const status = (r.status || "").toLowerCase();
+        var status = (r.status || "").toLowerCase();
         if (status === "available") available += 1;
         else if (status === "occupied") occupied += 1;
         else if (status === "maintenance") maintenanceCount += 1;
       });
 
-      return { total, available, occupied, maintenanceCount };
+      return {
+        total: total,
+        available: available,
+        occupied: occupied,
+        maintenanceCount: maintenanceCount,
+      };
     },
     [rooms]
   );
 
   const maintenanceStats = useMemo(
     function () {
-      let open = 0;
-      let inProgress = 0;
-      let closed = 0;
+      var open = 0;
+      var inProgress = 0;
+      var closed = 0;
 
       (Array.isArray(maintenance) ? maintenance : []).forEach(function (m) {
-        const status = (m.status || "").toLowerCase();
+        var status = (m.status || "").toLowerCase();
         if (status === "open") open += 1;
         else if (status === "in-progress" || status === "inprogress")
           inProgress += 1;
         else if (status === "closed") closed += 1;
       });
 
-      return { open, inProgress, closed };
+      return { open: open, inProgress: inProgress, closed: closed };
     },
     [maintenance]
   );
 
-  
-  const paidPct =
-    billingStats.total > 0 ? Math.round((billingStats.paid / billingStats.total) * 100) : 0;
-  const pendingPlusOverdue = billingStats.pending + billingStats.overdue;
-  const pendingPct =
+  var paidPct =
+    billingStats.total > 0
+      ? Math.round((billingStats.paid / billingStats.total) * 100)
+      : 0;
+  var pendingPlusOverdue = billingStats.pending + billingStats.overdue;
+  var pendingPct =
     billingStats.total > 0
       ? Math.round((pendingPlusOverdue / billingStats.total) * 100)
       : 0;
 
-  const totalRoomsForPct = roomStats.total || 1;
-  const occupiedPct = Math.round((roomStats.occupied / totalRoomsForPct) * 100);
-  const availablePct = Math.round((roomStats.available / totalRoomsForPct) * 100);
-  const maintRoomsPct = Math.round(
+  var totalRoomsForPct = roomStats.total || 1;
+  var occupiedPct = Math.round(
+    (roomStats.occupied / totalRoomsForPct) * 100
+  );
+  var availablePct = Math.round(
+    (roomStats.available / totalRoomsForPct) * 100
+  );
+  var maintRoomsPct = Math.round(
     (roomStats.maintenanceCount / totalRoomsForPct) * 100
   );
 
-  
-
   if (loading) {
     return (
-      <main className="p-6">
+      <main className="p-4 sm:p-6">
         <div className="text-sm text-gray-500">Loading reports…</div>
       </main>
     );
@@ -184,25 +189,25 @@ export default function ReportsPage() {
 
   if (error) {
     return (
-      <main className="p-6">
+      <main className="p-4 sm:p-6">
         <div className="text-sm text-red-500">{error}</div>
       </main>
     );
   }
 
   return (
-    <main className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <main className="p-4 sm:p-6 space-y-6">
+     
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-       
           <p className="text-sm text-gray-600 mt-1">
             Overview of billing, occupancy and maintenance activity.
           </p>
         </div>
       </div>
 
-    
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+     
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <div className="text-xs font-semibold text-gray-500 uppercase">
             Total Billed
@@ -226,7 +231,9 @@ export default function ReportsPage() {
             Pending + Overdue
           </div>
           <div className="mt-3 text-2xl font-bold text-amber-600">
-            {formatCurrency(billingStats.pending + billingStats.overdue)}
+            {formatCurrency(
+              billingStats.pending + billingStats.overdue
+            )}
           </div>
         </Card>
 
@@ -242,7 +249,7 @@ export default function ReportsPage() {
 
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-       
+        
         <Card title="Monthly Revenue">
           {monthlyTotals.entries.length === 0 && (
             <div className="py-8 text-center text-xs text-gray-500">
@@ -254,7 +261,10 @@ export default function ReportsPage() {
             <div className="h-52 flex items-end gap-3 mt-2">
               {monthlyTotals.entries.map(function (m) {
                 var max = monthlyTotals.max || 1;
-                var height = Math.max(8, Math.round((m.value / max) * 100));
+                var height = Math.max(
+                  8,
+                  Math.round((m.value / max) * 100)
+                );
                 return (
                   <div
                     key={m.label}
@@ -265,7 +275,9 @@ export default function ReportsPage() {
                       style={{ height: height + "%" }}
                       title={formatCurrency(m.value)}
                     >
-                      {m.value > 0 ? "₹" + (m.value / 1000).toFixed(1) + "k" : ""}
+                      {m.value > 0
+                        ? "₹" + (m.value / 1000).toFixed(1) + "k"
+                        : ""}
                     </div>
                     <div className="mt-2 text-[11px] text-gray-600 text-center">
                       {m.label}
@@ -283,10 +295,12 @@ export default function ReportsPage() {
             <div
               className="w-28 h-28 rounded-full"
               style={{
-                backgroundImage: `conic-gradient(
-                  #16a34a 0 ${paidPct}%,
-                  #f97316 ${paidPct}% 100%
-                )`,
+                backgroundImage:
+                  "conic-gradient(#16a34a 0 " +
+                  paidPct +
+                  "%,#f97316 " +
+                  paidPct +
+                  "% 100%)",
               }}
             >
               <div className="w-16 h-16 bg-white rounded-full m-6 flex items-center justify-center text-xs font-semibold">
@@ -296,13 +310,17 @@ export default function ReportsPage() {
             <div className="space-y-2 text-xs">
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full bg-green-500" />
-                <span>Paid – {formatCurrency(billingStats.paid)}</span>
+                <span>
+                  Paid – {formatCurrency(billingStats.paid)}
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full bg-amber-500" />
                 <span>
                   Pending + Overdue –{" "}
-                  {formatCurrency(billingStats.pending + billingStats.overdue)}
+                  {formatCurrency(
+                    billingStats.pending + billingStats.overdue
+                  )}
                 </span>
               </div>
             </div>
@@ -315,11 +333,16 @@ export default function ReportsPage() {
             <div
               className="w-28 h-28 rounded-full"
               style={{
-                backgroundImage: `conic-gradient(
-                  #0ea5e9 0 ${occupiedPct}%,
-                  #22c55e ${occupiedPct}% ${occupiedPct + availablePct}%,
-                  #f97316 ${occupiedPct + availablePct}% 100%
-                )`,
+                backgroundImage:
+                  "conic-gradient(#0ea5e9 0 " +
+                  occupiedPct +
+                  "%,#22c55e " +
+                  occupiedPct +
+                  "% " +
+                  (occupiedPct + availablePct) +
+                  "%,#f97316 " +
+                  (occupiedPct + availablePct) +
+                  "% 100%)",
               }}
             >
               <div className="w-16 h-16 bg-white rounded-full m-6 flex items-center justify-center text-xs font-semibold">
@@ -337,19 +360,26 @@ export default function ReportsPage() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full bg-amber-500" />
-                <span>Under Maintenance – {roomStats.maintenanceCount}</span>
+                <span>
+                  Under Maintenance –{" "}
+                  {roomStats.maintenanceCount}
+                </span>
               </div>
             </div>
           </div>
         </Card>
       </div>
 
-   
+      
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card title="Maintenance Status">
           <div className="mt-4 space-y-3 text-xs">
             {[
-              { label: "Open", value: maintenanceStats.open, color: "bg-red-500" },
+              {
+                label: "Open",
+                value: maintenanceStats.open,
+                color: "bg-red-500",
+              },
               {
                 label: "In-progress",
                 value: maintenanceStats.inProgress,
@@ -363,8 +393,8 @@ export default function ReportsPage() {
             ].map(function (row) {
               var total =
                 maintenanceStats.open +
-                maintenanceStats.inProgress +
-                maintenanceStats.closed || 1;
+                  maintenanceStats.inProgress +
+                  maintenanceStats.closed || 1;
               var pct = Math.round((row.value / total) * 100);
 
               return (
