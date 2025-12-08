@@ -147,43 +147,18 @@ export default function Topbar({
         </div>
 
       
-        <div className="flex items-center gap-2 sm:gap-3">
-          <div className="responsive-avatar hide-mobile">
-            {userInitial}
-          </div>
+        
 
-          <div className="hide-mobile text-right leading-tight">
-            <div className="text-sm font-semibold text-slate-800">
-              {(user && user.name) || "Admin User"}
-            </div>
-            <div className="text-xs text-slate-500">{userRole}</div>
-          </div>
+         
 
        
           <div className="show-mobile responsive-avatar">
             {userInitial}
           </div>
 
-          {onLogout && (
-            <button
-              type="button"
-              onClick={onLogout}
-              className="
-                hide-mobile
-                ml-1
-                px-3 py-1.5
-                rounded-lg
-                border border-slate-200
-                text-xs text-slate-600
-                hover:bg-slate-100
-                transition
-              "
-            >
-              Logout
-            </button>
-          )}
+         
         </div>
-      </div>
+     
     </header>
   );
 }
