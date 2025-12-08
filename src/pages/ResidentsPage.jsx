@@ -202,7 +202,7 @@ export default function ResidentsPage() {
     <main className="p-6 space-y-6 container-responsive">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="page-heading text-3xl">Residents</h2>
+       
           <p className="text-sm text-gray-600 mt-1">
             Manage current hostel residents and their room assignments.
           </p>

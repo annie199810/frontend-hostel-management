@@ -315,7 +315,7 @@ export default function UserManagementPage() {
       <main className="p-6 space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-3xl font-bold">User Management</h2>
+          
             <p className="text-sm text-gray-600 mt-1">
               Manage admin and staff accounts for the hostel management system.
             </p>

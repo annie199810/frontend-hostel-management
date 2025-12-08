@@ -424,7 +424,7 @@ export default function BillingPage() {
    
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-2xl font-semibold">Billing & Payments</h1>
+        
           <p className="text-sm text-gray-500">
             Track room fees &amp; invoices
           </p>

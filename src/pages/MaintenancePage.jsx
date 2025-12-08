@@ -216,7 +216,7 @@ export default function MaintenancePage() {
   return (
     <main className="p-6 space-y-6 container-responsive">
       <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold">Maintenance Requests</h2>
+      
 
         <div className="flex items-center gap-3">
           <button
