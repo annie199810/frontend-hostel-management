@@ -1,10 +1,13 @@
+
 import React, { useEffect, useMemo, useState } from "react";
 import Card from "../components/Card";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
+
 function StatusBadge({ value }) {
   const v = (value || "").toLowerCase();
+
   const cls =
     v === "occupied"
       ? "bg-emerald-50 text-emerald-700"
@@ -12,32 +15,36 @@ function StatusBadge({ value }) {
       ? "bg-amber-50 text-amber-700"
       : "bg-sky-50 text-sky-700";
 
+  const label =
+    v === "occupied"
+      ? "Occupied"
+      : v === "maintenance"
+      ? "Under maintenance"
+      : "Available";
+
   return (
-    <span className={"px-2 py-0.5 rounded-full text-xs font-medium " + cls}>
-      {v === "occupied"
-        ? "Occupied"
-        : v === "maintenance"
-        ? "Under maintenance"
-        : "Available"}
+    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>
+      {label}
     </span>
   );
 }
+
 
 function StatCard({ icon, label, value, colorBg }) {
   return (
     <Card>
       <div className="flex items-center gap-4">
         <div
-          className={
-            "rounded-lg p-3 flex items-center justify-center " + colorBg
-          }
+          className={`rounded-lg p-3 ${colorBg} flex items-center justify-center`}
           style={{ minWidth: 56 }}
         >
           <div className="text-2xl">{icon}</div>
         </div>
-        <div className="flex-1">
+        <div>
           <div className="text-xs text-gray-500">{label}</div>
-          <div className="mt-2 text-2xl font-bold text-slate-900">{value}</div>
+          <div className="mt-2 text-2xl font-bold text-slate-900">
+            {value}
+          </div>
         </div>
       </div>
     </Card>
@@ -61,18 +68,21 @@ export default function RoomsPage() {
     checkIn: "",
   });
 
+ 
   async function loadRooms() {
     try {
       setLoading(true);
       setError("");
+
       const res = await fetch(API_BASE + "/api/rooms");
       const json = await res.json();
+
       if (!res.ok || !json.ok) {
         throw new Error(json.error || "Failed to load rooms");
       }
+
       setRooms(json.rooms || []);
     } catch (err) {
-      console.error("RoomsPage loadRooms error:", err);
       setError("Failed to load rooms. Please try again.");
     } finally {
       setLoading(false);
@@ -83,34 +93,40 @@ export default function RoomsPage() {
     loadRooms();
   }, []);
 
+  
   const totalRooms = rooms.length;
-  const occupiedCount = rooms.filter(function (r) {
-    return (r.status || "").toLowerCase() === "occupied";
-  }).length;
-  const maintenanceCount = rooms.filter(function (r) {
-    return (r.status || "").toLowerCase() === "maintenance";
-  }).length;
+
+  const occupiedCount = rooms.filter(
+    (r) => (r.status || "").toLowerCase() === "occupied"
+  ).length;
+
+  const maintenanceCount = rooms.filter(
+    (r) => (r.status || "").toLowerCase() === "maintenance"
+  ).length;
+
   const availableCount = totalRooms - occupiedCount - maintenanceCount;
   const occupancyRate = totalRooms
     ? Math.round((occupiedCount * 100) / totalRooms)
     : 0;
 
+ 
   const filteredRooms = useMemo(
     function () {
-      var t = (search || "").toLowerCase();
-      return rooms.filter(function (r) {
-        var matchSearch =
-          !t ||
-          (r.number && String(r.number).toLowerCase().indexOf(t) !== -1) ||
-          (r.type && r.type.toLowerCase().indexOf(t) !== -1) ||
-          (r.occupantName &&
-            r.occupantName.toLowerCase().indexOf(t) !== -1);
+      const t = (search || "").toLowerCase();
 
-        var matchStatus =
+      return rooms.filter(function (r) {
+        const matchSearch =
+          !t ||
+          (r.number && String(r.number).toLowerCase().includes(t)) ||
+          (r.type && r.type.toLowerCase().includes(t)) ||
+          (r.occupantName &&
+            r.occupantName.toLowerCase().includes(t));
+
+        const matchStatus =
           statusFilter === "all" ||
           (r.status || "").toLowerCase() === statusFilter;
 
-        var matchType =
+        const matchType =
           typeFilter === "all" ||
           (r.type || "").toLowerCase() === typeFilter;
 
@@ -120,6 +136,7 @@ export default function RoomsPage() {
     [rooms, search, statusFilter, typeFilter]
   );
 
+  
   function openAssignModal(room) {
     setAssignRoom(room);
     setAssignForm({
@@ -139,14 +156,15 @@ export default function RoomsPage() {
   async function handleAssignSubmit(e) {
     e.preventDefault();
     if (!assignRoom) return;
+
     if (!assignForm.name) {
       alert("Please enter resident name");
       return;
     }
 
     try {
-    
-      var res1 = await fetch(API_BASE + "/api/residents", {
+      
+      const res1 = await fetch(API_BASE + "/api/residents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -157,14 +175,16 @@ export default function RoomsPage() {
           checkIn: assignForm.checkIn,
         }),
       });
-      var json1 = await res1.json();
+
+      const json1 = await res1.json();
       if (!res1.ok || !json1.ok) {
         throw new Error(json1.error || "Failed to create resident");
       }
-      var residentId = json1.resident && json1.resident._id;
 
- 
-      var res2 = await fetch(
+      const residentId = json1.resident._id;
+
+      
+      const res2 = await fetch(
         API_BASE + "/api/rooms/" + assignRoom._id + "/assign",
         {
           method: "POST",
@@ -175,7 +195,8 @@ export default function RoomsPage() {
           }),
         }
       );
-      var json2 = await res2.json();
+
+      const json2 = await res2.json();
       if (!res2.ok || !json2.ok) {
         throw new Error(json2.error || "Failed to assign room");
       }
@@ -185,49 +206,38 @@ export default function RoomsPage() {
       setAssignForm({ name: "", phone: "", checkIn: "" });
       loadRooms();
     } catch (err) {
-      console.error("Assign room error:", err);
-      alert("Failed to assign room. Please try again.");
-    }
-  }
-
-  async function handleCheckout(room) {
-    if (!window.confirm("Checkout room " + room.number + "?")) return;
-    try {
-      var res = await fetch(
-        API_BASE + "/api/rooms/" + room._id + "/checkout",
-        { method: "POST" }
-      );
-      var json = await res.json();
-      if (!res.ok || !json.ok) {
-        throw new Error(json.error || "Failed to checkout room");
-      }
-      loadRooms();
-    } catch (err) {
-      console.error("Checkout room error:", err);
-      alert("Failed to checkout room. Please try again.");
+      console.error(err);
+      alert("Failed to assign room. See console for details.");
     }
   }
 
   
-  var donutSize = 110;
-  var stroke = 14;
-  var radius = (donutSize - stroke) / 2;
-  var circumference = 2 * Math.PI * radius;
-  var offset =
-    circumference -
-    (Math.max(0, Math.min(100, occupancyRate)) / 100) * circumference;
+  async function handleCheckout(room) {
+    if (!window.confirm("Checkout room " + room.number + "?")) return;
+
+    try {
+      const res = await fetch(
+        API_BASE + "/api/rooms/" + room._id + "/checkout",
+        { method: "POST" }
+      );
+      const json = await res.json();
+
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error || "Failed to checkout room");
+      }
+
+      loadRooms();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to checkout room. See console for details.");
+    }
+  }
+
+  
 
   return (
-    <main className="p-6 space-y-6">
-
-      <div>
-        <h2 className="text-3xl font-bold">Room Management</h2>
-        <p className="text-sm text-gray-600 mt-1">
-          View, filter, and assign rooms to residents.
-        </p>
-      </div>
-
-     
+    <main className="p-4 sm:p-6 space-y-6">
+      
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           icon="🏠"
@@ -255,21 +265,21 @@ export default function RoomsPage() {
         />
       </div>
 
-      <Card>
      
+      <Card>
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full lg:w-auto">
+          <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
             <input
               type="text"
               placeholder="Search by room number, type, or occupant..."
-              className="border px-3 py-2 rounded text-sm w-full sm:w-[260px] lg:w-[420px]"
+              className="border px-3 py-2 rounded text-sm w-full sm:w-72 lg:w-[420px]"
               value={search}
               onChange={function (e) {
                 setSearch(e.target.value);
               }}
             />
 
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-3">
               <select
                 className="border px-3 py-2 rounded text-sm"
                 value={statusFilter}
@@ -302,20 +312,25 @@ export default function RoomsPage() {
           </div>
         </div>
 
-       
         {loading ? (
           <div className="py-8 text-center text-gray-500 text-sm">
             Loading rooms...
           </div>
         ) : error ? (
-          <div className="py-8 text-center text-red-600 text-sm">{error}</div>
+          <div className="py-8 text-center text-red-600 text-sm">
+            {error}
+          </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm border-t border-gray-200">
+          <div className="overflow-x-auto w-full">
+            <table className="min-w-full text-sm border-t border-gray-200 table-auto">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="text-left px-4 py-3 font-semibold">Room</th>
-                  <th className="text-left px-4 py-3 font-semibold">Type</th>
+                  <th className="text-left px-4 py-3 font-semibold">
+                    Room
+                  </th>
+                  <th className="text-left px-4 py-3 font-semibold">
+                    Type
+                  </th>
                   <th className="text-left px-4 py-3 font-semibold">
                     Occupant
                   </th>
@@ -414,7 +429,7 @@ export default function RoomsPage() {
         )}
       </Card>
 
-      
+     
       {showAssign && assignRoom && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-lg w-full max-w-lg p-6">
@@ -432,7 +447,10 @@ export default function RoomsPage() {
               </button>
             </div>
 
-            <form onSubmit={handleAssignSubmit} className="space-y-4">
+            <form
+              onSubmit={handleAssignSubmit}
+              className="space-y-4"
+            >
               <div>
                 <label className="block text-sm font-medium mb-1">
                   Resident name
