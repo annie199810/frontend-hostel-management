@@ -5,6 +5,7 @@ import StatusModal from "../components/StatusModal";
 var API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
 
+
 function StatusBadge(props) {
   var v = props.value || "";
   var cls =
@@ -19,14 +20,11 @@ function StatusBadge(props) {
   );
 }
 
-
 function ConfirmModal(props) {
   if (!props.open) return null;
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
-      <div className="absolute inset-0 bg-black/40" />
-
+    <div className="fixed inset-0 z-40 flex items-center justify-center px-4 modal-backdrop">
       <div className="relative z-10 bg-white w-full max-w-sm rounded-2xl shadow-xl p-6 text-center border">
         <div className="text-red-600 text-5xl mb-3">⚠</div>
 
@@ -57,6 +55,8 @@ function ConfirmModal(props) {
   );
 }
 
+
+
 export default function UserManagementPage() {
   var [items, setItems] = useState([]);
   var [loading, setLoading] = useState(true);
@@ -82,11 +82,10 @@ export default function UserManagementPage() {
   var [statusType, setStatusType] = useState("success");
   var [statusMessage, setStatusMessage] = useState("");
 
- 
+  
   var [deleteOpen, setDeleteOpen] = useState(false);
   var [userToDelete, setUserToDelete] = useState(null);
 
- 
   function showStatus(type, message) {
     setStatusType(type);
     setStatusMessage(message);
@@ -122,7 +121,7 @@ export default function UserManagementPage() {
 
   var filteredItems = useMemo(
     function () {
-      var text = search.toLowerCase();
+      var text = (search || "").toLowerCase();
 
       return (items || []).filter(function (u) {
         var matchSearch =
@@ -312,12 +311,13 @@ export default function UserManagementPage() {
         onConfirm={handleConfirmDelete}
       />
 
-      <main className="p-6 space-y-6">
+      <main className="p-4 sm:p-6 space-y-6 container-responsive">
+       
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-          
             <p className="text-sm text-gray-600 mt-1">
-              Manage admin and staff accounts for the hostel management system.
+              Manage admin and staff accounts for the hostel management
+              system.
             </p>
           </div>
 
@@ -329,6 +329,7 @@ export default function UserManagementPage() {
           </button>
         </div>
 
+       
         <Card>
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <input
@@ -450,8 +451,9 @@ export default function UserManagementPage() {
           )}
         </Card>
 
+       
         {showForm && (
-          <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-20">
+          <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-20">
             <div className="bg-white rounded-lg shadow-lg w-full max-w-xl p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-semibold">
