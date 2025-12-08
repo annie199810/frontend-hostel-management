@@ -146,12 +146,6 @@ export default function Topbar({
           )}
         </div>
 
-      
-        
-
-         
-
-       
           <div className="show-mobile responsive-avatar">
             {userInitial}
           </div>
