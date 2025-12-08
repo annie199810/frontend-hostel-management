@@ -169,10 +169,7 @@ export default function DashboardPage() {
       />
 
       
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">
-          {user?.name ? `Welcome, ${user.name}` : "Welcome to the dashboard"}
-        </h1>
+      <div>      
         <p className="text-sm text-slate-600 mt-1">
           Here’s an overview of your hostel today.
         </p>
