@@ -1,14 +1,15 @@
-
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 
-
-export default function Sidebar({ active = "dashboard", onSelect = () => {}, collapsed = false }) {
+export default function Sidebar({
+  active = "dashboard",
+  onSelect = () => {},
+  collapsed = false,
+}) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
- 
   const menu = [
     { key: "about", emoji: "ℹ️", label: "About" },
     { key: "dashboard", emoji: "🏠", label: "Dashboard" },
@@ -21,13 +22,25 @@ export default function Sidebar({ active = "dashboard", onSelect = () => {}, col
   ];
 
   function handleLogout() {
-    if (logout) logout();
-    navigate("/login");
+   
+    if (!window.confirm("Do you want to logout?")) return;
+
+    try {
+      if (logout) logout();              
+    } catch (e) {}
+
+    try {
+      localStorage.removeItem("token");  
+    } catch (e) {}
+
+    navigate("/login", { replace: true }); 
   }
 
   return (
     <aside
-      className={`flex flex-col h-screen bg-[#0f2230] text-white ${collapsed ? "w-20" : "w-64"} transition-all duration-200`}
+      className={`flex flex-col h-screen bg-[#0f2230] text-white ${
+        collapsed ? "w-20" : "w-64"
+      } transition-all duration-200`}
       aria-label="Sidebar"
     >
       
@@ -38,8 +51,12 @@ export default function Sidebar({ active = "dashboard", onSelect = () => {}, col
 
         {!collapsed && (
           <div>
-            <div className="text-sm font-semibold leading-none">{user?.name || "Admin User"}</div>
-            <div className="text-xs text-slate-300 leading-none">{user?.role || "Administrator"}</div>
+            <div className="text-sm font-semibold leading-none">
+              {user?.name || "Admin User"}
+            </div>
+            <div className="text-xs text-slate-300 leading-none">
+              {user?.role || "Administrator"}
+            </div>
           </div>
         )}
       </div>
@@ -53,23 +70,26 @@ export default function Sidebar({ active = "dashboard", onSelect = () => {}, col
               <li key={m.key}>
                 <button
                   onClick={() => {
-                  
                     if (m.key === "about") {
                       navigate("/about");
                     } else {
-                      
                       onSelect(m.key);
                     }
                   }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-150 text-sm
-                    ${isActive ? "bg-[#173241] shadow-md text-white" : "text-slate-200 hover:bg-[#0c2b3a]/60 hover:text-white"}`}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-all duration-150
+                    ${
+                      isActive
+                        ? "bg-[#173241] shadow-md text-white"
+                        : "text-slate-200 hover:bg-[#0c2b3a]/60 hover:text-white"
+                    }`}
                   title={m.label}
                 >
                   <span className="flex items-center justify-center h-8 w-8 rounded-md text-lg">
                     {m.emoji}
                   </span>
-
-                  {!collapsed && <span className="flex-1 text-left">{m.label}</span>}
+                  {!collapsed && (
+                    <span className="flex-1 text-left">{m.label}</span>
+                  )}
                 </button>
               </li>
             );
@@ -77,13 +97,15 @@ export default function Sidebar({ active = "dashboard", onSelect = () => {}, col
         </ul>
       </nav>
 
-      
+     
       <div className="p-3 border-t border-[#122033]">
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-3 text-red-400 hover:text-red-300 text-sm px-3 py-3 rounded-md transition"
         >
-          <span className="h-8 w-8 flex items-center justify-center rounded-md">⛔</span>
+          <span className="h-8 w-8 flex items-center justify-center rounded-md">
+            ⛔
+          </span>
           <span>Logout</span>
         </button>
       </div>
