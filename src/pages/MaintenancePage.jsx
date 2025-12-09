@@ -1,3 +1,4 @@
+
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Card from "../components/Card";
 import StatusModal from "../components/StatusModal";
@@ -8,6 +9,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 function getAuthHeaders(includeJson) {
   var headers = {};
   var token = null;
+
   try {
     token = localStorage.getItem("token");
   } catch (e) {}
@@ -25,16 +27,19 @@ function getAuthHeaders(includeJson) {
 async function safeFetchJson(url, opts) {
   const res = await fetch(url, opts);
   const text = await res.text();
+  let json = {};
   try {
-    return { res, json: text ? JSON.parse(text) : {} };
+    json = text ? JSON.parse(text) : {};
   } catch (e) {
-    return { res, json: { __rawText: text } };
+    json = { __rawText: text };
   }
+  return { res, json };
 }
 
+
 function StatusBadge(props) {
-  const v = props.value || "Open";
-  const cls =
+  var v = props.value || "Open";
+  var cls =
     v === "Open"
       ? "bg-red-50 text-red-700"
       : v === "In-progress"
@@ -49,8 +54,8 @@ function StatusBadge(props) {
 }
 
 function PriorityBadge(props) {
-  const v = props.value || "Medium";
-  const cls =
+  var v = props.value || "Medium";
+  var cls =
     v === "High"
       ? "bg-red-50 text-red-700"
       : v === "Medium"
@@ -65,33 +70,28 @@ function PriorityBadge(props) {
 }
 
 
-function ConfirmModal({ open, message, onCancel, onConfirm }) {
-  if (!open) return null;
+function ConfirmModal(props) {
+  if (!props.open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+    <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
       <div className="absolute inset-0 bg-black/40" />
-
       <div className="relative z-10 bg-white w-full max-w-sm rounded-2xl shadow-xl p-6 text-center border">
-        <div className="text-yellow-500 text-5xl mb-3">⚠</div>
-
-        <h2 className="text-xl font-semibold mb-2 text-amber-700">
-          CONFIRM
-        </h2>
-
-        <p className="text-slate-600 mb-5 leading-relaxed">{message}</p>
+        <div className="text-amber-500 text-5xl mb-3">⚠</div>
+        <h2 className="text-xl font-semibold mb-2 text-amber-700">CONFIRM</h2>
+        <p className="text-slate-600 mb-5 leading-relaxed">{props.message}</p>
 
         <div className="flex justify-center gap-3">
           <button
             type="button"
-            onClick={onCancel}
+            onClick={props.onCancel}
             className="px-4 py-2 rounded-lg border text-sm text-slate-700 hover:bg-slate-100"
           >
             Cancel
           </button>
           <button
             type="button"
-            onClick={onConfirm}
+            onClick={props.onConfirm}
             className="px-4 py-2 rounded-lg text-sm text-white bg-amber-600 hover:bg-amber-700"
           >
             Delete
@@ -103,21 +103,28 @@ function ConfirmModal({ open, message, onCancel, onConfirm }) {
 }
 
 export default function MaintenancePage() {
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  var [items, setItems] = useState([]);
+  var [loading, setLoading] = useState(true);
+  var [error, setError] = useState("");
 
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [priorityFilter, setPriorityFilter] = useState("all");
+  var [search, setSearch] = useState("");
+  var [statusFilter, setStatusFilter] = useState("all");
+  var [priorityFilter, setPriorityFilter] = useState("all");
 
-  const [showForm, setShowForm] = useState(false);
-  const [formMode, setFormMode] = useState("add");
-  const [saving, setSaving] = useState(false);
+  var [showForm, setShowForm] = useState(false);
+  var [formMode, setFormMode] = useState("add");
+  var [saving, setSaving] = useState(false);
 
-  const firstInputRef = useRef(null);
+  var [statusOpen, setStatusOpen] = useState(false);
+  var [statusType, setStatusType] = useState("success");
+  var [statusMessage, setStatusMessage] = useState("");
 
-  const [formData, setFormData] = useState({
+  var [confirmOpen, setConfirmOpen] = useState(false);
+  var [rowToDelete, setRowToDelete] = useState(null);
+
+  var firstInputRef = useRef(null);
+
+  var [formData, setFormData] = useState({
     roomNumber: "",
     issue: "",
     type: "Plumbing",
@@ -128,50 +135,43 @@ export default function MaintenancePage() {
     _id: undefined,
   });
 
-  
-  const [statusOpen, setStatusOpen] = useState(false);
-  const [statusType, setStatusType] = useState("success");
-  const [statusMessage, setStatusMessage] = useState("");
-
-  
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState(null);
-
-  function showStatus(type, msg) {
+  function showStatus(type, message) {
     setStatusType(type);
-    setStatusMessage(msg);
+    setStatusMessage(message);
     setStatusOpen(true);
   }
 
   
   useEffect(function () {
-    let mounted = true;
+    var mounted = true;
 
     async function load() {
       try {
         setLoading(true);
         setError("");
 
-        const { json, res } = await safeFetchJson(
-          API_BASE + "/api/maintenance",
-          { headers: getAuthHeaders(false) }
-        );
+        var result = await safeFetchJson(API_BASE + "/api/maintenance", {
+          method: "GET",
+          headers: getAuthHeaders(false),
+        });
 
-        if (!res.ok) {
+        var json = result.json || {};
+        if (!result.res.ok || json.ok === false) {
           throw new Error(
-            (json && (json.error || json.message)) ||
-              "Failed to load maintenance (" + res.status + ")"
+            json.error || json.message || "Failed to load maintenance"
           );
         }
 
-        const list = Array.isArray(json)
+        var list = Array.isArray(json)
           ? json
           : json.requests || json.data || [];
 
         if (mounted) setItems(list);
       } catch (err) {
         console.error("Maintenance load error:", err);
-        if (mounted) setError("Failed to load maintenance requests.");
+        if (mounted) {
+          setError("Failed to load maintenance requests.");
+        }
       } finally {
         if (mounted) setLoading(false);
       }
@@ -183,20 +183,21 @@ export default function MaintenancePage() {
     };
   }, []);
 
-  const filteredItems = useMemo(
+  
+  var filteredItems = useMemo(
     function () {
-      const q = (search || "").trim().toLowerCase();
+      var q = (search || "").trim().toLowerCase();
       return (items || []).filter(function (r) {
-        const matchSearch =
+        var matchSearch =
           !q ||
           String(r.roomNumber || "").toLowerCase().indexOf(q) !== -1 ||
           String(r.issue || "").toLowerCase().indexOf(q) !== -1 ||
           String(r.reportedBy || "").toLowerCase().indexOf(q) !== -1;
 
-        const matchStatus =
+        var matchStatus =
           statusFilter === "all" || (r.status || "") === statusFilter;
 
-        const matchPriority =
+        var matchPriority =
           priorityFilter === "all" || (r.priority || "") === priorityFilter;
 
         return matchSearch && matchStatus && matchPriority;
@@ -205,6 +206,7 @@ export default function MaintenancePage() {
     [items, search, statusFilter, priorityFilter]
   );
 
+  
   function openAddForm() {
     setFormMode("add");
     setFormData({
@@ -227,7 +229,10 @@ export default function MaintenancePage() {
   }
 
   function openEditForm(row) {
-    if (row.status === "Closed") return; 
+    
+    if (row.status === "Closed") {
+      return;
+    }
 
     setFormMode("edit");
     setFormData({
@@ -255,7 +260,7 @@ export default function MaintenancePage() {
     });
   }
 
- 
+  
   async function handleFormSubmit(e) {
     e.preventDefault();
 
@@ -268,24 +273,24 @@ export default function MaintenancePage() {
       setSaving(true);
 
       if (formMode === "add") {
-        const { res, json } = await safeFetchJson(
-          API_BASE + "/api/maintenance",
-          {
-            method: "POST",
-            headers: getAuthHeaders(true),
-            body: JSON.stringify(formData),
-          }
-        );
+        var addResult = await safeFetchJson(API_BASE + "/api/maintenance", {
+          method: "POST",
+          headers: getAuthHeaders(true),
+          body: JSON.stringify(formData),
+        });
 
-        if (!res.ok) {
+        var addJson = addResult.json || {};
+
+        if (!addResult.res.ok || addJson.ok === false) {
           throw new Error(
-            (json && (json.error || json.message)) ||
-              "Create failed (" + res.status + ")"
+            addJson.error ||
+              addJson.message ||
+              "Create failed (" + addResult.res.status + ")"
           );
         }
 
-        const created =
-          json.request || json.data || (Array.isArray(json) ? json[0] : json);
+        var created =
+          addJson.request || addJson.data || (Array.isArray(addJson) ? addJson[0] : addJson);
 
         if (created) {
           setItems(function (prev) {
@@ -293,13 +298,13 @@ export default function MaintenancePage() {
           });
         }
 
-        showStatus("success", "Request created");
+        showStatus("success", "Maintenance request created.");
       } else {
-        const id = formData._id;
-        const payload = Object.assign({}, formData);
+        var id = formData._id;
+        var payload = Object.assign({}, formData);
         delete payload._id;
 
-        const { res, json } = await safeFetchJson(
+        var editResult = await safeFetchJson(
           API_BASE + "/api/maintenance/" + id,
           {
             method: "PUT",
@@ -308,21 +313,25 @@ export default function MaintenancePage() {
           }
         );
 
-        if (!res.ok) {
+        var editJson = editResult.json || {};
+
+        if (!editResult.res.ok || editJson.ok === false) {
           throw new Error(
-            (json && (json.error || json.message)) ||
-              "Update failed (" + res.status + ")"
+            editJson.error ||
+              editJson.message ||
+              "Update failed (" + editResult.res.status + ")"
           );
         }
 
-        const updated = json.request || json.data || json;
+        var updated = editJson.request || editJson.data || editJson;
+
         setItems(function (prev) {
           return prev.map(function (r) {
             return r._id === id ? updated : r;
           });
         });
 
-        showStatus("success", "Request updated");
+        showStatus("success", "Maintenance request updated.");
       }
 
       setShowForm(false);
@@ -335,20 +344,21 @@ export default function MaintenancePage() {
   }
 
   
-  function handleDelete(row) {
-    setItemToDelete(row);
+  function askDelete(row) {
+    setRowToDelete(row);
     setConfirmOpen(true);
   }
 
-  async function handleConfirmDelete() {
-    const row = itemToDelete;
-    if (!row) {
+  async function confirmDelete() {
+    if (!rowToDelete) {
       setConfirmOpen(false);
       return;
     }
 
+    var row = rowToDelete;
+
     try {
-      const { res, json } = await safeFetchJson(
+      var delResult = await safeFetchJson(
         API_BASE + "/api/maintenance/" + row._id,
         {
           method: "DELETE",
@@ -356,10 +366,12 @@ export default function MaintenancePage() {
         }
       );
 
-      if (!res.ok) {
+      var delJson = delResult.json || {};
+      if (!delResult.res.ok || delJson.ok === false) {
         throw new Error(
-          (json && (json.error || json.message)) ||
-            "Delete failed (" + res.status + ")"
+          delJson.error ||
+            delJson.message ||
+            "Delete failed (" + delResult.res.status + ")"
         );
       }
 
@@ -369,18 +381,18 @@ export default function MaintenancePage() {
         });
       });
 
-      showStatus("success", "Request deleted");
+      showStatus("success", "Request deleted.");
     } catch (err) {
       console.error("Delete maintenance error:", err);
-      showStatus("error", err.message || "Delete failed");
+      showStatus("error", err.message || "Delete failed.");
     } finally {
       setConfirmOpen(false);
-      setItemToDelete(null);
+      setRowToDelete(null);
     }
   }
 
-
-  async function handleMarkDone(row) {
+  
+  function handleMarkDone(row) {
     if (row.status === "Closed") return;
 
     
@@ -392,19 +404,19 @@ export default function MaintenancePage() {
       });
     });
 
-    try {
-      await fetch(API_BASE + "/api/maintenance/" + row._id + "/status", {
-        method: "POST",
-        headers: getAuthHeaders(true),
-        body: JSON.stringify({ status: "Closed" }),
-      });
-    } catch (err) {
+    
+    safeFetchJson(API_BASE + "/api/maintenance/" + row._id + "/status", {
+      method: "POST",
+      headers: getAuthHeaders(true),
+      body: JSON.stringify({ status: "Closed" }),
+    }).catch(function (err) {
       console.warn("Failed to update status on server:", err);
-    }
+    });
   }
 
   return (
     <main className="p-4 sm:p-6 space-y-6">
+     
       <StatusModal
         open={statusOpen}
         type={statusType}
@@ -414,20 +426,20 @@ export default function MaintenancePage() {
         }}
       />
 
+      
       <ConfirmModal
         open={confirmOpen}
         message={
-          itemToDelete
-            ? "Delete request for room " + itemToDelete.roomNumber + "?"
-            : ""
+          rowToDelete ? "Delete request for room " + rowToDelete.roomNumber + "?" : ""
         }
         onCancel={function () {
           setConfirmOpen(false);
-          setItemToDelete(null);
+          setRowToDelete(null);
         }}
-        onConfirm={handleConfirmDelete}
+        onConfirm={confirmDelete}
       />
 
+      
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <p className="text-sm text-gray-600 mt-1">
@@ -452,6 +464,7 @@ export default function MaintenancePage() {
           <div className="p-4 text-red-600">{error}</div>
         ) : (
           <>
+          
             <div className="flex flex-wrap items-center gap-3 mb-4">
               <input
                 aria-label="Search maintenance"
@@ -495,6 +508,7 @@ export default function MaintenancePage() {
               </div>
             </div>
 
+           
             <div className="overflow-x-auto w-full">
               <table className="min-w-full text-sm table-auto border-t border-gray-200">
                 <thead className="bg-gray-50">
@@ -505,9 +519,7 @@ export default function MaintenancePage() {
                     <th className="px-3 py-2 text-left font-semibold">
                       Priority
                     </th>
-                    <th className="px-3 py-2 text-left font-semibold">
-                      Status
-                    </th>
+                    <th className="px-3 py-2 text-left font-semibold">Status</th>
                     <th className="px-3 py-2 text-left font-semibold">
                       Reported By
                     </th>
@@ -533,6 +545,8 @@ export default function MaintenancePage() {
                   )}
 
                   {filteredItems.map(function (row) {
+                    var isClosed = row.status === "Closed";
+
                     return (
                       <tr key={row._id} className="border-t">
                         <td className="px-3 py-3">{row.roomNumber}</td>
@@ -555,8 +569,11 @@ export default function MaintenancePage() {
                             onClick={function () {
                               handleMarkDone(row);
                             }}
-                            className="text-green-600 text-xs disabled:opacity-40"
-                            disabled={row.status === "Closed"}
+                            className={
+                              "text-green-600 text-xs " +
+                              (isClosed ? "opacity-40 cursor-not-allowed" : "")
+                            }
+                            disabled={isClosed}
                           >
                             Mark Done
                           </button>
@@ -564,14 +581,17 @@ export default function MaintenancePage() {
                             onClick={function () {
                               openEditForm(row);
                             }}
-                            className="text-blue-600 text-xs disabled:opacity-40"
-                            disabled={row.status === "Closed"}
+                            className={
+                              "text-blue-600 text-xs " +
+                              (isClosed ? "opacity-40 cursor-not-allowed" : "")
+                            }
+                            disabled={isClosed}
                           >
                             Edit
                           </button>
                           <button
                             onClick={function () {
-                              handleDelete(row);
+                              askDelete(row);
                             }}
                             className="text-red-600 text-xs"
                           >
@@ -587,8 +607,6 @@ export default function MaintenancePage() {
           </>
         )}
       </Card>
-
-    
     </main>
   );
 }
