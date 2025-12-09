@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Card from "../components/Card";
+import StatusModal from "../components/StatusModal";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
@@ -75,7 +76,11 @@ export default function MaintenancePage() {
     _id: undefined,
   });
 
-  
+
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [rowToDelete, setRowToDelete] = useState(null);
+
+ 
   useEffect(function () {
     let mounted = true;
 
@@ -127,7 +132,7 @@ export default function MaintenancePage() {
     [items, search, statusFilter, priorityFilter]
   );
 
-  
+
   function openAddForm() {
     setFormMode("add");
     setFormData({
@@ -149,7 +154,7 @@ export default function MaintenancePage() {
     }, 60);
   }
 
-  
+ 
   function openEditForm(row) {
     
     if (row.status === "Closed") return;
@@ -266,9 +271,18 @@ export default function MaintenancePage() {
   }
 
 
-  async function handleDelete(row) {
-    if (!window.confirm("Delete request for room " + row.roomNumber + "?"))
+  function handleDeleteClick(row) {
+    setRowToDelete(row);
+    setConfirmOpen(true);
+  }
+
+ 
+  async function handleConfirmDelete() {
+    const row = rowToDelete;
+    if (!row) {
+      setConfirmOpen(false);
       return;
+    }
 
     try {
       const { res } = await safeFetchJson(
@@ -283,14 +297,13 @@ export default function MaintenancePage() {
             return r._id !== row._id;
           });
         });
-        return;
-      }
-
-      setItems(function (prev) {
-        return prev.filter(function (r) {
-          return r._id !== row._id;
+      } else {
+        setItems(function (prev) {
+          return prev.filter(function (r) {
+            return r._id !== row._id;
+          });
         });
-      });
+      }
     } catch (err) {
       console.error("Delete maintenance error:", err);
       setItems(function (prev) {
@@ -298,10 +311,13 @@ export default function MaintenancePage() {
           return r._id !== row._id;
         });
       });
+    } finally {
+      setConfirmOpen(false);
+      setRowToDelete(null);
     }
   }
 
-  
+
   function handleMarkDone(row) {
     if (row.status === "Closed") return;
 
@@ -314,7 +330,7 @@ export default function MaintenancePage() {
       });
     });
 
-    
+   
     fetch(API_BASE + "/api/maintenance/" + row._id + "/status", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -326,7 +342,25 @@ export default function MaintenancePage() {
 
   return (
     <main className="p-4 sm:p-6 space-y-6">
-     
+      
+      <StatusModal
+        open={confirmOpen}
+        type="warning"
+        message={
+          rowToDelete
+            ? "Delete request for room " + rowToDelete.roomNumber + "?"
+            : ""
+        }
+        onClose={function () {
+          setConfirmOpen(false);
+          setRowToDelete(null);
+        }}
+        onConfirm={handleConfirmDelete}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+      />
+
+    
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <p className="text-sm text-gray-600 mt-1">
@@ -357,7 +391,7 @@ export default function MaintenancePage() {
           <div className="p-4 text-red-600">{error}</div>
         ) : (
           <>
-            
+          
             <div className="flex flex-wrap items-center gap-3 mb-4">
               <input
                 aria-label="Search maintenance"
@@ -401,7 +435,7 @@ export default function MaintenancePage() {
               </div>
             </div>
 
-           
+            
             <div className="overflow-x-auto w-full">
               <table className="min-w-full text-sm table-auto border-t border-gray-200">
                 <thead className="bg-gray-50">
@@ -475,7 +509,6 @@ export default function MaintenancePage() {
                           >
                             Mark Done
                           </button>
-
                           <button
                             onClick={function () {
                               openEditForm(row);
@@ -488,10 +521,9 @@ export default function MaintenancePage() {
                           >
                             Edit
                           </button>
-
                           <button
                             onClick={function () {
-                              handleDelete(row);
+                              handleDeleteClick(row);
                             }}
                             className="text-red-600 text-xs"
                           >
@@ -508,7 +540,7 @@ export default function MaintenancePage() {
         )}
       </Card>
 
-    
+      
       {showForm && (
         <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-40">
           <div
@@ -518,9 +550,7 @@ export default function MaintenancePage() {
           >
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-semibold">
-                {formMode === "add"
-                  ? "New Maintenance Request"
-                  : "Edit Request"}
+                {formMode === "add" ? "New Maintenance Request" : "Edit Request"}
               </h3>
               <button
                 onClick={function () {
