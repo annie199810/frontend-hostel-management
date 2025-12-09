@@ -1,9 +1,25 @@
-
 import React, { useEffect, useMemo, useState } from "react";
 import Card from "../components/Card";
 import StatusModal from "../components/StatusModal";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+
+
+function getAuthHeaders(includeJson) {
+  var headers = {};
+  var token = null;
+  try {
+    token = localStorage.getItem("token");
+  } catch (e) {}
+
+  if (includeJson) {
+    headers["Content-Type"] = "application/json";
+  }
+  if (token) {
+    headers["Authorization"] = "Bearer " + token;
+  }
+  return headers;
+}
 
 
 function pad(n) {
@@ -68,6 +84,7 @@ export default function BillingPage() {
   const [showInvoice, setShowInvoice] = useState(false);
   const [showView, setShowView] = useState(false);
 
+  
   const [addForm, setAddForm] = useState({
     residentName: "",
     roomNumber: "",
@@ -78,6 +95,8 @@ export default function BillingPage() {
     method: "Cash",
     notes: "",
   });
+  const [editMode, setEditMode] = useState(false);
+  const [editTarget, setEditTarget] = useState(null);
 
   const [invoiceData, setInvoiceData] = useState({
     invoiceNo: "",
@@ -114,13 +133,12 @@ export default function BillingPage() {
   function showError(msg) {
     setModalType("error");
     setModalMessage(
-      msg ||
-        "Something went wrong. Please try again in a moment."
+      msg || "Something went wrong. Please try again in a moment."
     );
     setModalOpen(true);
   }
 
-
+  
   useEffect(function () {
     let mounted = true;
 
@@ -129,10 +147,18 @@ export default function BillingPage() {
       setError("");
 
       try {
-        const res = await fetch(API_BASE + "/api/billing");
+        const res = await fetch(API_BASE + "/api/billing", {
+          method: "GET",
+          headers: getAuthHeaders(false),
+        });
+
         if (!res.ok) {
+          if (res.status === 401 || res.status === 403) {
+            throw new Error("Unauthorized. Please sign in again.");
+          }
           throw new Error("Failed to load (" + res.status + ")");
         }
+
         const data = await res.json();
 
         const list = (data.payments || []).map(function (p) {
@@ -144,7 +170,12 @@ export default function BillingPage() {
         if (mounted) setPayments(list);
       } catch (err) {
         console.error("load billing err", err);
-        if (mounted) setError("Failed to load billing records.");
+        if (mounted)
+          setError(
+            err && err.message
+              ? err.message
+              : "Failed to load billing records."
+          );
       } finally {
         if (mounted) setLoading(false);
       }
@@ -181,19 +212,15 @@ export default function BillingPage() {
     [payments]
   );
 
-  
+
   const filtered = useMemo(
     function () {
       const q = (search || "").toLowerCase();
       return payments.filter(function (p) {
         const matchText =
           !q ||
-          (p.residentName || "")
-            .toLowerCase()
-            .indexOf(q) !== -1 ||
-          String(p.roomNumber || "")
-            .toLowerCase()
-            .indexOf(q) !== -1 ||
+          (p.residentName || "").toLowerCase().indexOf(q) !== -1 ||
+          String(p.roomNumber || "").toLowerCase().indexOf(q) !== -1 ||
           (p.month || "").toLowerCase().indexOf(q) !== -1;
 
         const matchStatus =
@@ -212,7 +239,7 @@ export default function BillingPage() {
 
     const res = await fetch(url, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: getAuthHeaders(true),
       body: JSON.stringify({ method: "Manual" }),
     });
 
@@ -245,6 +272,7 @@ export default function BillingPage() {
     return (data && data.payment) || null;
   }
 
+  
   function openPayNow(p) {
     setPayNowTarget(p);
     setPayNowOpen(true);
@@ -269,9 +297,7 @@ export default function BillingPage() {
         return;
       }
       if (!cardNumber || !expiry || !cvv || !cardName) {
-        showError(
-          "Please complete all card details before proceeding."
-        );
+        showError("Please complete all card details before proceeding.");
         return;
       }
     }
@@ -290,7 +316,7 @@ export default function BillingPage() {
     };
 
     try {
-      
+     
       try {
         const r1 = await fetch(API_BASE + "/api/payments", {
           method: "POST",
@@ -306,10 +332,7 @@ export default function BillingPage() {
           } catch (e) {}
         }
       } catch (e1) {
-        console.info(
-          "POST /api/payments failed (dev fallback):",
-          e1 && e1.message
-        );
+        console.info("POST /api/payments failed (dev fallback):", e1 && e1.message);
       }
 
       const updated = await markAsPaid(payNowTarget._id);
@@ -338,9 +361,7 @@ export default function BillingPage() {
       setPayNowTarget(null);
     } catch (err) {
       console.error("confirmPayNow err", err);
-      showError(
-        "Payment could not be processed. Please try again."
-      );
+      showError("Payment could not be processed. Please try again.");
     } finally {
       setPayNowProcessing(false);
     }
@@ -368,38 +389,136 @@ export default function BillingPage() {
       status: addForm.status || "Pending",
       method: addForm.method || "Cash",
       dueDate: addForm.dueDate || addDaysISO(30),
-      paidOn: "",
+      paidOn: addForm.status === "Paid" ? new Date().toISOString().slice(0, 10) : "",
       notes: addForm.notes || "",
-      invoiceNo: invoiceFallback(),
+      invoiceNo: editMode
+        ? (editTarget && editTarget.invoiceNo) || invoiceFallback()
+        : invoiceFallback(),
     };
 
     try {
-      const res = await fetch(API_BASE + "/api/billing", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-
-      if (!res.ok || !data.ok) {
-        console.error("submitAdd backend err:", data);
-        showError(
-          "Unable to save the payment. Please try again."
+      if (editMode && editTarget && editTarget._id) {
+    
+        const res = await fetch(
+          API_BASE + "/api/billing/" + editTarget._id,
+          {
+            method: "PUT",
+            headers: getAuthHeaders(true),
+            body: JSON.stringify(payload),
+          }
         );
-        return;
+        const data = await res.json();
+
+        if (!res.ok || !data.ok) {
+          console.error("update payment err:", data);
+          showError("Unable to update the payment. Please try again.");
+          return;
+        }
+
+        const updated = data.payment || payload;
+        updated._id = updated._id || editTarget._id;
+        updated.invoiceNo = updated.invoiceNo || payload.invoiceNo;
+
+        setPayments(function (prev) {
+          return prev.map(function (x) {
+            return x._id === updated._id ? Object.assign({}, x, updated) : x;
+          });
+        });
+
+        setShowAdd(false);
+        setEditMode(false);
+        setEditTarget(null);
+        showSuccess("Payment has been updated successfully.");
+      } else {
+       
+        const res = await fetch(API_BASE + "/api/billing", {
+          method: "POST",
+          headers: getAuthHeaders(true),
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+
+        if (!res.ok || !data.ok) {
+          console.error("submitAdd backend err:", data);
+          showError("Unable to save the payment. Please try again.");
+          return;
+        }
+
+        const saved = data.payment || payload;
+        saved.invoiceNo = saved.invoiceNo || payload.invoiceNo;
+
+        setPayments(function (prev) {
+          return [saved].concat(prev);
+        });
+        setShowAdd(false);
+        showSuccess("Payment has been added successfully.");
       }
-
-      const saved = data.payment || payload;
-      saved.invoiceNo = saved.invoiceNo || invoiceFallback();
-
-      setPayments(function (prev) {
-        return [saved].concat(prev);
-      });
-      setShowAdd(false);
-      showSuccess("Payment has been added successfully.");
     } catch (err) {
       console.error("submitAdd err", err);
       showError("Network error. Please try again in a moment.");
+    }
+  }
+
+  function openAddModal() {
+    setEditMode(false);
+    setEditTarget(null);
+    setAddForm({
+      residentName: "",
+      roomNumber: "",
+      amount: "",
+      month: "",
+      dueDate: "",
+      status: "Pending",
+      method: "Cash",
+      notes: "",
+    });
+    setShowAdd(true);
+  }
+
+  function openEdit(payment) {
+    setEditMode(true);
+    setEditTarget(payment);
+    setAddForm({
+      residentName: payment.residentName || "",
+      roomNumber: payment.roomNumber || "",
+      amount:
+        payment.amount != null ? String(payment.amount) : "",
+      month: payment.month || "",
+      dueDate: payment.dueDate || "",
+      status: payment.status || "Pending",
+      method: payment.method || "Cash",
+      notes: payment.notes || "",
+    });
+    setShowAdd(true);
+  }
+
+  
+  async function handleDelete(p) {
+    if (!p || !p._id) return;
+    if (!window.confirm("Delete this payment permanently?")) return;
+
+    try {
+      const res = await fetch(API_BASE + "/api/billing/" + p._id, {
+        method: "DELETE",
+        headers: getAuthHeaders(false),
+      });
+      const data = await res.json();
+
+      if (!res.ok || (data && data.ok === false)) {
+        console.error("delete payment err:", data);
+        showError("Failed to delete payment. Please try again.");
+        return;
+      }
+
+      setPayments(function (prev) {
+        return prev.filter(function (x) {
+          return x._id !== p._id;
+        });
+      });
+      showSuccess("Payment has been deleted successfully.");
+    } catch (err) {
+      console.error("handleDelete err", err);
+      showError("Network error while deleting payment.");
     }
   }
 
@@ -429,31 +548,25 @@ export default function BillingPage() {
       dueDate: invoiceData.dueDate || addDaysISO(30),
       paidOn: "",
       notes: invoiceData.notes || "",
-      invoiceNo:
-        invoiceData.invoiceNo || invoiceFallback(),
+      invoiceNo: invoiceData.invoiceNo || invoiceFallback(),
     };
 
     try {
       const res = await fetch(API_BASE + "/api/billing", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(true),
         body: JSON.stringify(payload),
       });
       const data = await res.json();
 
       if (!res.ok || !data.ok) {
-        console.error(
-          "handleGenerateInvoice backend err:",
-          data
-        );
-        showError(
-          "Unable to generate the invoice. Please try again."
-        );
+        console.error("handleGenerateInvoice backend err:", data);
+        showError("Unable to generate the invoice. Please try again.");
         return;
       }
 
       const saved = data.payment || payload;
-      saved.invoiceNo = saved.invoiceNo || invoiceFallback();
+      saved.invoiceNo = saved.invoiceNo || payload.invoiceNo;
 
       setPayments(function (prev) {
         return [saved].concat(prev);
@@ -466,15 +579,14 @@ export default function BillingPage() {
     }
   }
 
+  
   function openView(p) {
     setViewPayment(p);
     setShowView(true);
   }
 
   function sendReminder() {
-    showSuccess(
-      "A payment reminder has been sent to the resident."
-    );
+    showSuccess("A payment reminder has been sent to the resident.");
   }
 
   function formatDateForInput(iso) {
@@ -486,10 +598,10 @@ export default function BillingPage() {
     }
   }
 
-  
+ 
   return (
     <main className="p-4 sm:p-6 bg-gray-50 min-h-screen space-y-6">
-    
+     
       <div className="flex justify-between items-start flex-wrap gap-3">
         <div>
           <p className="text-sm text-gray-500">
@@ -498,6 +610,13 @@ export default function BillingPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={openAddModal}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded shadow text-sm"
+          >
+            + Add Payment
+          </button>
+
           <button
             onClick={function () {
               setInvoiceData({
@@ -521,16 +640,12 @@ export default function BillingPage() {
       
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
-          <div className="text-xs text-gray-500">
-            Total Payments
-          </div>
+          <div className="text-xs text-gray-500">Total Payments</div>
           <div className="text-3xl font-bold">{stats.total}</div>
         </Card>
 
         <Card>
-          <div className="text-xs text-gray-500">
-            Total Amount
-          </div>
+          <div className="text-xs text-gray-500">Total Amount</div>
           <div className="text-2xl font-bold text-purple-600">
             {formatCurrency(stats.totalAmount)}
           </div>
@@ -551,7 +666,7 @@ export default function BillingPage() {
         </Card>
       </section>
 
-     
+      
       <Card title="Payment History">
         <div className="flex flex-wrap gap-3 mb-4 items-center">
           <input
@@ -621,9 +736,7 @@ export default function BillingPage() {
                       </td>
                       <td className="px-3 py-3">
                         {p.dueDate
-                          ? new Date(
-                              p.dueDate
-                            ).toLocaleDateString()
+                          ? new Date(p.dueDate).toLocaleDateString()
                           : "-"}
                       </td>
                       <td className="px-3 py-3">
@@ -688,6 +801,24 @@ export default function BillingPage() {
 
                           <button
                             onClick={function () {
+                              openEdit(p);
+                            }}
+                            className="px-2 py-1 text-xs bg-sky-50 text-sky-700 rounded"
+                          >
+                            Edit
+                          </button>
+
+                          <button
+                            onClick={function () {
+                              handleDelete(p);
+                            }}
+                            className="px-2 py-1 text-xs bg-red-50 text-red-600 rounded"
+                          >
+                            Delete
+                          </button>
+
+                          <button
+                            onClick={function () {
                               sendReminder();
                             }}
                             className="px-2 py-1 text-xs bg-amber-50 text-amber-700 rounded"
@@ -716,7 +847,7 @@ export default function BillingPage() {
         )}
       </Card>
 
-    
+      
       {payNowOpen && payNowTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
@@ -760,25 +891,19 @@ export default function BillingPage() {
             >
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start text-sm">
                 <div>
-                  <div className="text-xs text-slate-500">
-                    Invoice
-                  </div>
+                  <div className="text-xs text-slate-500">Invoice</div>
                   <div className="font-semibold text-slate-800">
                     {payNowTarget.invoiceNo}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs text-slate-500">
-                    Resident
-                  </div>
+                  <div className="text-xs text-slate-500">Resident</div>
                   <div className="font-semibold text-slate-800">
                     {payNowTarget.residentName}
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-xs text-slate-500">
-                    Amount
-                  </div>
+                  <div className="text-xs text-slate-500">Amount</div>
                   <div className="font-semibold text-sky-900 text-lg">
                     {formatCurrency(payNowTarget.amount)}
                   </div>
@@ -786,17 +911,16 @@ export default function BillingPage() {
               </div>
             </div>
 
-         
+            
             <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
+            
               <div className="lg:col-span-2">
                 <div className="mb-3 text-sm font-semibold text-slate-700">
                   Payment Method
                 </div>
 
-                
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  
+               
                   <label
                     className={
                       "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition " +
@@ -829,7 +953,7 @@ export default function BillingPage() {
                     </div>
                   </label>
 
-                 
+                
                   <label
                     className={
                       "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition " +
@@ -886,7 +1010,7 @@ export default function BillingPage() {
                     </div>
                   </label>
 
-                  
+                 
                   <label
                     className={
                       "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition " +
@@ -908,7 +1032,7 @@ export default function BillingPage() {
                   </label>
                 </div>
 
-                
+               
                 <div className="mt-4">
                   {paymentMethod === "Card" && (
                     <div className="space-y-3">
@@ -1024,26 +1148,20 @@ export default function BillingPage() {
                 </div>
               </div>
 
-           
+             
               <aside className="order-first lg:order-last">
                 <div className="border rounded-lg p-4 shadow-sm bg-white w-full">
-                  <div className="text-xs text-slate-500">
-                    Invoice
-                  </div>
+                  <div className="text-xs text-slate-500">Invoice</div>
                   <div className="font-semibold mb-3 text-slate-800">
                     {payNowTarget.invoiceNo}
                   </div>
 
-                  <div className="text-xs text-slate-500">
-                    Resident
-                  </div>
+                  <div className="text-xs text-slate-500">Resident</div>
                   <div className="font-medium mb-3">
                     {payNowTarget.residentName}
                   </div>
 
-                  <div className="text-xs text-slate-500">
-                    Amount
-                  </div>
+                  <div className="text-xs text-slate-500">Amount</div>
                   <div className="text-2xl font-bold text-sky-800 mb-4">
                     {formatCurrency(payNowTarget.amount)}
                   </div>
@@ -1073,7 +1191,7 @@ export default function BillingPage() {
               </aside>
             </div>
 
-           
+          
             <div className="flex items-center justify-end gap-3 p-4 border-t">
               <button
                 onClick={function () {
@@ -1099,16 +1217,14 @@ export default function BillingPage() {
                 }
                 aria-busy={payNowProcessing}
               >
-                {payNowProcessing
-                  ? "Processing..."
-                  : "Process Payment"}
+                {payNowProcessing ? "Processing..." : "Process Payment"}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      
+     
       {showView && viewPayment && (
         <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" />
@@ -1205,8 +1321,7 @@ export default function BillingPage() {
                   Notes
                 </p>
                 <p className="text-sm text-slate-700 whitespace-pre-wrap">
-                  {viewPayment.notes &&
-                  viewPayment.notes.trim() !== ""
+                  {viewPayment.notes && viewPayment.notes.trim() !== ""
                     ? viewPayment.notes
                     : "No special notes for this payment."}
                 </p>
@@ -1243,11 +1358,13 @@ export default function BillingPage() {
           <div className="relative z-10 w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-100 p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-slate-900">
-                Add Payment
+                {editMode ? "Edit Payment" : "Add Payment"}
               </h3>
               <button
                 onClick={function () {
                   setShowAdd(false);
+                  setEditMode(false);
+                  setEditTarget(null);
                 }}
                 className="text-slate-400 hover:text-slate-600"
               >
@@ -1376,6 +1493,8 @@ export default function BillingPage() {
                   type="button"
                   onClick={function () {
                     setShowAdd(false);
+                    setEditMode(false);
+                    setEditTarget(null);
                   }}
                   className="px-3 py-1.5 text-sm border rounded"
                 >
@@ -1385,7 +1504,7 @@ export default function BillingPage() {
                   type="submit"
                   className="px-3 py-1.5 text-sm rounded bg-emerald-600 text-white"
                 >
-                  Save
+                  {editMode ? "Save Changes" : "Save"}
                 </button>
               </div>
             </form>
@@ -1393,6 +1512,7 @@ export default function BillingPage() {
         </div>
       )}
 
+      
       {showInvoice && (
         <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-slate-900/40" />
@@ -1516,9 +1636,7 @@ export default function BillingPage() {
                 </label>
                 <input
                   type="date"
-                  value={formatDateForInput(
-                    invoiceData.dueDate
-                  )}
+                  value={formatDateForInput(invoiceData.dueDate)}
                   onChange={function (e) {
                     setInvoiceData(
                       Object.assign({}, invoiceData, {
@@ -1586,7 +1704,6 @@ export default function BillingPage() {
         </div>
       )}
 
-     
       <StatusModal
         open={modalOpen}
         type={modalType}
