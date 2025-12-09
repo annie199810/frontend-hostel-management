@@ -1,4 +1,3 @@
-
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Card from "../components/Card";
 
@@ -59,7 +58,7 @@ export default function MaintenancePage() {
   const [priorityFilter, setPriorityFilter] = useState("all");
 
   const [showForm, setShowForm] = useState(false);
-  const [formMode, setFormMode] = useState("add"); 
+  const [formMode, setFormMode] = useState("add");
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState("");
 
@@ -93,8 +92,7 @@ export default function MaintenancePage() {
         if (mounted) setItems(list);
       } catch (err) {
         console.error("Maintenance load error:", err);
-        if (mounted)
-          setError("Failed to load maintenance requests.");
+        if (mounted) setError("Failed to load maintenance requests.");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -106,30 +104,22 @@ export default function MaintenancePage() {
     };
   }, []);
 
-
+ 
   const filteredItems = useMemo(
     function () {
       const q = (search || "").trim().toLowerCase();
       return (items || []).filter(function (r) {
         const matchSearch =
           !q ||
-          String(r.roomNumber || "")
-            .toLowerCase()
-            .indexOf(q) !== -1 ||
-          String(r.issue || "")
-            .toLowerCase()
-            .indexOf(q) !== -1 ||
-          String(r.reportedBy || "")
-            .toLowerCase()
-            .indexOf(q) !== -1;
+          String(r.roomNumber || "").toLowerCase().indexOf(q) !== -1 ||
+          String(r.issue || "").toLowerCase().indexOf(q) !== -1 ||
+          String(r.reportedBy || "").toLowerCase().indexOf(q) !== -1;
 
         const matchStatus =
-          statusFilter === "all" ||
-          (r.status || "") === statusFilter;
+          statusFilter === "all" || (r.status || "") === statusFilter;
 
         const matchPriority =
-          priorityFilter === "all" ||
-          (r.priority || "") === priorityFilter;
+          priorityFilter === "all" || (r.priority || "") === priorityFilter;
 
         return matchSearch && matchStatus && matchPriority;
       });
@@ -159,7 +149,11 @@ export default function MaintenancePage() {
     }, 60);
   }
 
+  
   function openEditForm(row) {
+    
+    if (row.status === "Closed") return;
+
     setFormMode("edit");
     setFormData({
       roomNumber: row.roomNumber || "",
@@ -168,8 +162,7 @@ export default function MaintenancePage() {
       priority: row.priority || "Medium",
       status: row.status || "Open",
       reportedBy: row.reportedBy || "",
-      reportedOn:
-        row.reportedOn || new Date().toISOString().slice(0, 10),
+      reportedOn: row.reportedOn || new Date().toISOString().slice(0, 10),
       _id: row._id,
     });
     setShowForm(true);
@@ -187,14 +180,12 @@ export default function MaintenancePage() {
     });
   }
 
-
+  
   async function handleFormSubmit(e) {
     e.preventDefault();
 
     if (!formData.roomNumber || !formData.issue) {
-      alert(
-        "Please enter room number and a short issue title."
-      );
+      alert("Please enter room number and a short issue title.");
       return;
     }
 
@@ -219,9 +210,7 @@ export default function MaintenancePage() {
         }
 
         const created =
-          json.request ||
-          json.data ||
-          (Array.isArray(json) ? json[0] : json);
+          json.request || json.data || (Array.isArray(json) ? json[0] : json);
 
         if (created) {
           setItems(function (prev) {
@@ -278,11 +267,7 @@ export default function MaintenancePage() {
 
 
   async function handleDelete(row) {
-    if (
-      !window.confirm(
-        "Delete request for room " + row.roomNumber + "?"
-      )
-    )
+    if (!window.confirm("Delete request for room " + row.roomNumber + "?"))
       return;
 
     try {
@@ -291,7 +276,7 @@ export default function MaintenancePage() {
         { method: "DELETE" }
       );
 
-    
+      
       if (res.ok) {
         setItems(function (prev) {
           return prev.filter(function (r) {
@@ -320,6 +305,7 @@ export default function MaintenancePage() {
   function handleMarkDone(row) {
     if (row.status === "Closed") return;
 
+    
     setItems(function (prev) {
       return prev.map(function (r) {
         return r._id === row._id
@@ -328,6 +314,7 @@ export default function MaintenancePage() {
       });
     });
 
+    
     fetch(API_BASE + "/api/maintenance/" + row._id + "/status", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -337,15 +324,13 @@ export default function MaintenancePage() {
     });
   }
 
-  
   return (
     <main className="p-4 sm:p-6 space-y-6">
      
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <p className="text-sm text-gray-600 mt-1">
-            Track maintenance requests and follow up on open
-            issues.
+            Track maintenance requests and follow up on open issues.
           </p>
         </div>
 
@@ -372,7 +357,7 @@ export default function MaintenancePage() {
           <div className="p-4 text-red-600">{error}</div>
         ) : (
           <>
-           
+            
             <div className="flex flex-wrap items-center gap-3 mb-4">
               <input
                 aria-label="Search maintenance"
@@ -416,7 +401,7 @@ export default function MaintenancePage() {
               </div>
             </div>
 
-          
+           
             <div className="overflow-x-auto w-full">
               <table className="min-w-full text-sm table-auto border-t border-gray-200">
                 <thead className="bg-gray-50">
@@ -461,14 +446,12 @@ export default function MaintenancePage() {
                   )}
 
                   {filteredItems.map(function (row) {
+                    const isClosed = row.status === "Closed";
+
                     return (
                       <tr key={row._id} className="border-t">
-                        <td className="px-3 py-3">
-                          {row.roomNumber}
-                        </td>
-                        <td className="px-3 py-3">
-                          {row.issue}
-                        </td>
+                        <td className="px-3 py-3">{row.roomNumber}</td>
+                        <td className="px-3 py-3">{row.issue}</td>
                         <td className="px-3 py-3">{row.type}</td>
                         <td className="px-3 py-3">
                           <PriorityBadge value={row.priority} />
@@ -488,18 +471,24 @@ export default function MaintenancePage() {
                               handleMarkDone(row);
                             }}
                             className="text-green-600 text-xs disabled:opacity-40"
-                            disabled={row.status === "Closed"}
+                            disabled={isClosed}
                           >
                             Mark Done
                           </button>
+
                           <button
                             onClick={function () {
                               openEditForm(row);
                             }}
-                            className="text-blue-600 text-xs"
+                            disabled={isClosed}
+                            className={
+                              "text-blue-600 text-xs " +
+                              (isClosed ? "opacity-40 cursor-not-allowed" : "")
+                            }
                           >
                             Edit
                           </button>
+
                           <button
                             onClick={function () {
                               handleDelete(row);
@@ -519,7 +508,7 @@ export default function MaintenancePage() {
         )}
       </Card>
 
-     
+    
       {showForm && (
         <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-40">
           <div
@@ -544,10 +533,7 @@ export default function MaintenancePage() {
               </button>
             </div>
 
-            <form
-              onSubmit={handleFormSubmit}
-              className="space-y-4"
-            >
+            <form onSubmit={handleFormSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">
@@ -561,10 +547,7 @@ export default function MaintenancePage() {
                     className="border px-3 py-2 rounded w-full text-sm"
                     value={formData.roomNumber}
                     onChange={function (e) {
-                      handleFormChange(
-                        "roomNumber",
-                        e.target.value
-                      );
+                      handleFormChange("roomNumber", e.target.value);
                     }}
                     aria-label="Room number"
                   />
@@ -580,10 +563,7 @@ export default function MaintenancePage() {
                     className="border px-3 py-2 rounded w-full text-sm"
                     value={formData.reportedBy}
                     onChange={function (e) {
-                      handleFormChange(
-                        "reportedBy",
-                        e.target.value
-                      );
+                      handleFormChange("reportedBy", e.target.value);
                     }}
                     aria-label="Reported by"
                   />
@@ -636,10 +616,7 @@ export default function MaintenancePage() {
                     className="border px-3 py-2 rounded w-full text-sm"
                     value={formData.priority}
                     onChange={function (e) {
-                      handleFormChange(
-                        "priority",
-                        e.target.value
-                      );
+                      handleFormChange("priority", e.target.value);
                     }}
                   >
                     <option value="High">High</option>
@@ -660,9 +637,7 @@ export default function MaintenancePage() {
                     }}
                   >
                     <option value="Open">Open</option>
-                    <option value="In-progress">
-                      In-progress
-                    </option>
+                    <option value="In-progress">In-progress</option>
                     <option value="Closed">Closed</option>
                   </select>
                 </div>
@@ -677,10 +652,7 @@ export default function MaintenancePage() {
                   className="border px-3 py-2 rounded w-full text-sm"
                   value={formData.reportedOn}
                   onChange={function (e) {
-                    handleFormChange(
-                      "reportedOn",
-                      e.target.value
-                    );
+                    handleFormChange("reportedOn", e.target.value);
                   }}
                 />
               </div>
