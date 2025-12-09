@@ -23,7 +23,6 @@ function getAuthHeaders(includeJson) {
   return headers;
 }
 
-
 async function safeFetchJson(url, opts) {
   const res = await fetch(url, opts);
   const text = await res.text();
@@ -35,7 +34,6 @@ async function safeFetchJson(url, opts) {
   }
   return { res, json };
 }
-
 
 function StatusBadge(props) {
   var v = props.value || "Open";
@@ -69,7 +67,6 @@ function PriorityBadge(props) {
   );
 }
 
-
 function ConfirmModal(props) {
   if (!props.open) return null;
 
@@ -101,6 +98,7 @@ function ConfirmModal(props) {
     </div>
   );
 }
+
 
 export default function MaintenancePage() {
   var [items, setItems] = useState([]);
@@ -141,7 +139,7 @@ export default function MaintenancePage() {
     setStatusOpen(true);
   }
 
-  
+ 
   useEffect(function () {
     var mounted = true;
 
@@ -169,9 +167,7 @@ export default function MaintenancePage() {
         if (mounted) setItems(list);
       } catch (err) {
         console.error("Maintenance load error:", err);
-        if (mounted) {
-          setError("Failed to load maintenance requests.");
-        }
+        if (mounted) setError("Failed to load maintenance requests.");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -183,7 +179,7 @@ export default function MaintenancePage() {
     };
   }, []);
 
-  
+ 
   var filteredItems = useMemo(
     function () {
       var q = (search || "").trim().toLowerCase();
@@ -230,9 +226,7 @@ export default function MaintenancePage() {
 
   function openEditForm(row) {
     
-    if (row.status === "Closed") {
-      return;
-    }
+    if (row.status === "Closed") return;
 
     setFormMode("edit");
     setFormData({
@@ -280,7 +274,6 @@ export default function MaintenancePage() {
         });
 
         var addJson = addResult.json || {};
-
         if (!addResult.res.ok || addJson.ok === false) {
           throw new Error(
             addJson.error ||
@@ -290,7 +283,9 @@ export default function MaintenancePage() {
         }
 
         var created =
-          addJson.request || addJson.data || (Array.isArray(addJson) ? addJson[0] : addJson);
+          addJson.request ||
+          addJson.data ||
+          (Array.isArray(addJson) ? addJson[0] : addJson);
 
         if (created) {
           setItems(function (prev) {
@@ -314,7 +309,6 @@ export default function MaintenancePage() {
         );
 
         var editJson = editResult.json || {};
-
         if (!editResult.res.ok || editJson.ok === false) {
           throw new Error(
             editJson.error ||
@@ -365,7 +359,6 @@ export default function MaintenancePage() {
           headers: getAuthHeaders(false),
         }
       );
-
       var delJson = delResult.json || {};
       if (!delResult.res.ok || delJson.ok === false) {
         throw new Error(
@@ -391,11 +384,10 @@ export default function MaintenancePage() {
     }
   }
 
-  
+ 
   function handleMarkDone(row) {
     if (row.status === "Closed") return;
 
-    
     setItems(function (prev) {
       return prev.map(function (r) {
         return r._id === row._id
@@ -404,7 +396,6 @@ export default function MaintenancePage() {
       });
     });
 
-    
     safeFetchJson(API_BASE + "/api/maintenance/" + row._id + "/status", {
       method: "POST",
       headers: getAuthHeaders(true),
@@ -414,6 +405,7 @@ export default function MaintenancePage() {
     });
   }
 
+  
   return (
     <main className="p-4 sm:p-6 space-y-6">
      
@@ -426,7 +418,7 @@ export default function MaintenancePage() {
         }}
       />
 
-      
+    
       <ConfirmModal
         open={confirmOpen}
         message={
@@ -439,7 +431,7 @@ export default function MaintenancePage() {
         onConfirm={confirmDelete}
       />
 
-      
+      {/* header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <p className="text-sm text-gray-600 mt-1">
@@ -464,7 +456,7 @@ export default function MaintenancePage() {
           <div className="p-4 text-red-600">{error}</div>
         ) : (
           <>
-          
+            {/* filters */}
             <div className="flex flex-wrap items-center gap-3 mb-4">
               <input
                 aria-label="Search maintenance"
@@ -508,7 +500,7 @@ export default function MaintenancePage() {
               </div>
             </div>
 
-           
+            
             <div className="overflow-x-auto w-full">
               <table className="min-w-full text-sm table-auto border-t border-gray-200">
                 <thead className="bg-gray-50">
@@ -607,6 +599,184 @@ export default function MaintenancePage() {
           </>
         )}
       </Card>
+
+    
+      {showForm && (
+        <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-40">
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="bg-white rounded-lg shadow-lg w-full max-w-xl p-6"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold">
+                {formMode === "add"
+                  ? "New Maintenance Request"
+                  : "Edit Request"}
+              </h3>
+              <button
+                onClick={function () {
+                  setShowForm(false);
+                }}
+                className="text-gray-500 hover:text-gray-700 text-lg"
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={handleFormSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Room Number
+                  </label>
+                  <input
+                    ref={firstInputRef}
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="e.g. 103"
+                    className="border px-3 py-2 rounded w-full text-sm"
+                    value={formData.roomNumber}
+                    onChange={function (e) {
+                      handleFormChange("roomNumber", e.target.value);
+                    }}
+                    aria-label="Room number"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Reported By (name)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Alice"
+                    className="border px-3 py-2 rounded w-full text-sm"
+                    value={formData.reportedBy}
+                    onChange={function (e) {
+                      handleFormChange("reportedBy", e.target.value);
+                    }}
+                    aria-label="Reported by"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Issue Title (brief)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Leaking tap in bathroom"
+                  className="border px-3 py-2 rounded w-full text-sm"
+                  value={formData.issue}
+                  onChange={function (e) {
+                    handleFormChange("issue", e.target.value);
+                  }}
+                  aria-label="Issue title"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Short summary — this shows on the list.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Type
+                  </label>
+                  <select
+                    className="border px-3 py-2 rounded w-full text-sm"
+                    value={formData.type}
+                    onChange={function (e) {
+                      handleFormChange("type", e.target.value);
+                    }}
+                  >
+                    <option value="Plumbing">Plumbing</option>
+                    <option value="Electrical">Electrical</option>
+                    <option value="Cleaning">Cleaning</option>
+                    <option value="Others">Others</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Priority
+                  </label>
+                  <select
+                    className="border px-3 py-2 rounded w-full text-sm"
+                    value={formData.priority}
+                    onChange={function (e) {
+                      handleFormChange("priority", e.target.value);
+                    }}
+                  >
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Low">Low</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Status
+                  </label>
+                  <select
+                    className="border px-3 py-2 rounded w-full text-sm"
+                    value={formData.status}
+                    onChange={function (e) {
+                      handleFormChange("status", e.target.value);
+                    }}
+                  >
+                    <option value="Open">Open</option>
+                    <option value="In-progress">In-progress</option>
+                    <option value="Closed">Closed</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Reported On
+                </label>
+                <input
+                  type="date"
+                  className="border px-3 py-2 rounded w-full text-sm"
+                  value={formData.reportedOn}
+                  onChange={function (e) {
+                    handleFormChange("reportedOn", e.target.value);
+                  }}
+                />
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={function () {
+                    setShowForm(false);
+                  }}
+                  className="px-4 py-2 border rounded text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="px-4 py-2 bg-blue-600 text-white rounded text-sm disabled:opacity-70"
+                >
+                  {saving
+                    ? formMode === "add"
+                      ? "Creating…"
+                      : "Saving…"
+                    : formMode === "add"
+                    ? "Create Request"
+                    : "Save Changes"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
