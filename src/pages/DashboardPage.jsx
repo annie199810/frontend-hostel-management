@@ -1,14 +1,33 @@
+
 import React, { useEffect, useState, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Card from "../components/Card";
 import StatusModal from "../components/StatusModal";
 import { useAuth } from "../auth/AuthProvider";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL; 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
+
+
+function getAuthHeaders(includeJson) {
+  var headers = {};
+  var token = null;
+
+  try {
+    token = localStorage.getItem("token");
+  } catch (e) {}
+
+  if (includeJson) {
+    headers["Content-Type"] = "application/json";
+  }
+  if (token) {
+    headers["Authorization"] = "Bearer " + token;
+  }
+  return headers;
+}
 
 function formatCurrency(amount) {
   if (!amount) return "₹0";
-  return "₹" + amount.toLocaleString("en-IN");
+  return "₹" + (Number(amount) || 0).toLocaleString("en-IN");
 }
 
 export default function DashboardPage() {
@@ -17,7 +36,6 @@ export default function DashboardPage() {
   const location = useLocation();
   const navigate = useNavigate();
 
- 
   const initialWelcome =
     (location.state && location.state.justLoggedIn) || false;
 
@@ -37,14 +55,13 @@ export default function DashboardPage() {
       ? "Welcome, " + user.name + "! You are now signed in."
       : "Welcome to the dashboard!";
 
- 
   const [rooms, setRooms] = useState([]);
   const [residents, setResidents] = useState([]);
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
+  useEffect(function () {
     loadData();
   }, []);
 
@@ -52,15 +69,29 @@ export default function DashboardPage() {
     setLoading(true);
     setError("");
 
-    Promise.all([
-      fetch(API_BASE + "/api/rooms").then((r) => r.json()),
-      fetch(API_BASE + "/api/residents").then((r) => r.json()),
-      fetch(API_BASE + "/api/billing").then((r) => r.json()),
-    ])
-      .then((results) => {
-        const roomsRes = results[0] || {};
-        const resRes = results[1] || {};
-        const billRes = results[2] || {};
+    const roomsPromise = fetch(API_BASE + "/api/rooms").then(function (r) {
+      return r.json();
+    });
+
+    const residentsPromise = fetch(API_BASE + "/api/residents", {
+      method: "GET",
+      headers: getAuthHeaders(false),
+    }).then(function (r) {
+      return r.json();
+    });
+
+    const billingPromise = fetch(API_BASE + "/api/billing", {
+      method: "GET",
+      headers: getAuthHeaders(false),
+    }).then(function (r) {
+      return r.json();
+    });
+
+    Promise.all([roomsPromise, residentsPromise, billingPromise])
+      .then(function (results) {
+        var roomsRes = results[0] || {};
+        var resRes = results[1] || {};
+        var billRes = results[2] || {};
 
         if (!roomsRes.ok) throw new Error("Rooms API error");
         if (!resRes.ok) throw new Error("Residents API error");
@@ -70,95 +101,117 @@ export default function DashboardPage() {
         setResidents(resRes.residents || []);
         setBills(billRes.payments || []);
       })
-      .catch((err) => {
+      .catch(function (err) {
         console.error("Dashboard load error:", err);
-        setError("Failed to load dashboard data.");
+        if (
+          String(err.message || "").indexOf("401") !== -1 ||
+          String(err.message || "").toLowerCase().indexOf("unauthorized") !== -1
+        ) {
+          setError("Session expired or unauthorized. Please log in again.");
+        } else {
+          setError("Failed to load dashboard data.");
+        }
       })
-      .finally(() => {
+      .finally(function () {
         setLoading(false);
       });
   }
 
-  
-  const totalRooms = rooms.length;
 
-  const occupiedRooms = useMemo(
-    () =>
-      rooms.filter((r) =>
-        String(r.status || "").toLowerCase().includes("occupied")
-      ).length,
+  var totalRooms = rooms.length;
+
+  var occupiedRooms = useMemo(
+    function () {
+      return rooms.filter(function (r) {
+        return String(r.status || "")
+          .toLowerCase()
+          .indexOf("occupied") !== -1;
+      }).length;
+    },
     [rooms]
   );
 
-  const availableRooms = useMemo(
-    () =>
-      rooms.filter((r) =>
-        String(r.status || "").toLowerCase().includes("available")
-      ).length,
+  var availableRooms = useMemo(
+    function () {
+      return rooms.filter(function (r) {
+        return String(r.status || "")
+          .toLowerCase()
+          .indexOf("available") !== -1;
+      }).length;
+    },
     [rooms]
   );
 
-  const maintenanceRooms = useMemo(
-    () =>
-      rooms.filter((r) =>
-        String(r.status || "").toLowerCase().includes("maintenance")
-      ).length,
+  var maintenanceRooms = useMemo(
+    function () {
+      return rooms.filter(function (r) {
+        return String(r.status || "")
+          .toLowerCase()
+          .indexOf("maintenance") !== -1;
+      }).length;
+    },
     [rooms]
   );
 
-  const occupancyRate = totalRooms
+  var occupancyRate = totalRooms
     ? Math.round((occupiedRooms * 100) / totalRooms)
     : 0;
 
-  const billingStats = useMemo(() => {
-    let paid = 0,
-      pending = 0;
-    (bills || []).forEach((b) => {
-      const status = String(b.status || "").toLowerCase();
-      const amount = Number(b.amount) || 0;
-      if (status === "paid") paid += amount;
-      else if (status === "pending" || status === "overdue") pending += amount;
-    });
-    return { paid, pending, total: paid + pending };
-  }, [bills]);
+  var billingStats = useMemo(
+    function () {
+      var paid = 0;
+      var pending = 0;
+      (bills || []).forEach(function (b) {
+        var status = String(b.status || "").toLowerCase();
+        var amount = Number(b.amount) || 0;
+        if (status === "paid") paid += amount;
+        else if (status === "pending" || status === "overdue") pending += amount;
+      });
+      return { paid: paid, pending: pending, total: paid + pending };
+    },
+    [bills]
+  );
 
-  const recentResidents = useMemo(() => {
-    const copy = (residents || []).slice();
-    copy.sort((a, b) => {
-      const da = a.checkIn || "";
-      const db = b.checkIn || "";
-      return db.localeCompare(da);
-    });
-    return copy.slice(0, 5);
-  }, [residents]);
+  var recentResidents = useMemo(
+    function () {
+      var copy = (residents || []).slice();
+      copy.sort(function (a, b) {
+        var da = a.checkIn || "";
+        var db = b.checkIn || "";
+        return db.localeCompare(da);
+      });
+      return copy.slice(0, 5);
+    },
+    [residents]
+  );
 
   
-  const donutSize = 220;
-  const stroke = 22;
-  const radius = (donutSize - stroke) / 2;
-  const circumference = 2 * Math.PI * radius;
+  var donutSize = 220;
+  var stroke = 22;
+  var radius = (donutSize - stroke) / 2;
+  var circumference = 2 * Math.PI * radius;
 
-  const segOccupied = occupiedRooms;
-  const segAvailable = availableRooms;
-  const segMaintenance = maintenanceRooms;
-  const segTotal =
+  var segOccupied = occupiedRooms;
+  var segAvailable = availableRooms;
+  var segMaintenance = maintenanceRooms;
+  var segTotal =
     segOccupied + segAvailable + segMaintenance || totalRooms || 1;
 
-  const segOccPct = Math.round((segOccupied / segTotal) * 100) || 0;
-  const segAvailPct = Math.round((segAvailable / segTotal) * 100) || 0;
-  const segMaintPct = Math.max(0, 100 - segOccPct - segAvailPct);
+  var segOccPct = Math.round((segOccupied / segTotal) * 100) || 0;
+  var segAvailPct = Math.round((segAvailable / segTotal) * 100) || 0;
+  var segMaintPct = Math.max(0, 100 - segOccPct - segAvailPct);
 
-  const dashOcc = (circumference * segOccupied) / segTotal;
-  const dashAvail = (circumference * segAvailable) / segTotal;
-  const dashMaint = (circumference * segMaintenance) / segTotal;
+  var dashOcc = (circumference * segOccupied) / segTotal;
+  var dashAvail = (circumference * segAvailable) / segTotal;
+  var dashMaint = (circumference * segMaintenance) / segTotal;
 
-  const offsetOcc = 0;
-  const offsetAvail = circumference - dashOcc;
-  const offsetMaint = circumference - (dashOcc + dashAvail);
+  var offsetOcc = 0;
+  var offsetAvail = circumference - dashOcc;
+  var offsetMaint = circumference - (dashOcc + dashAvail);
 
   return (
     <main className="p-4 sm:p-6 space-y-6">
-      
+    
       <StatusModal
         open={welcomeOpen}
         type="success"
@@ -168,23 +221,20 @@ export default function DashboardPage() {
         }}
       />
 
-      
-      <div>      
+      <div>
         <p className="text-sm text-slate-600 mt-1">
           Here’s an overview of your hostel today.
         </p>
       </div>
 
       {loading && (
-        <div className="text-sm text-gray-500">
-          Loading dashboard data…
-        </div>
+        <div className="text-sm text-gray-500">Loading dashboard data…</div>
       )}
-      {error && (
+      {!loading && error && (
         <div className="text-sm text-red-600 mb-2">{error}</div>
       )}
 
-   
+    
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <div className="flex items-center gap-3">
@@ -211,9 +261,7 @@ export default function DashboardPage() {
               ✅
             </div>
             <div>
-              <div className="text-xs font-medium text-gray-500">
-                OCCUPIED
-              </div>
+              <div className="text-xs font-medium text-gray-500">OCCUPIED</div>
               <div className="mt-2 text-3xl font-extrabold text-emerald-600">
                 {occupiedRooms}
               </div>
@@ -282,9 +330,9 @@ export default function DashboardPage() {
             </div>
           ) : (
             <ul className="space-y-3 mt-2">
-              {recentResidents.map((r) => {
-                const gender = String(r.gender || "").toLowerCase();
-                const icon =
+              {recentResidents.map(function (r) {
+                var gender = String(r.gender || "").toLowerCase();
+                var icon =
                   gender === "male"
                     ? "👨"
                     : gender === "female"
@@ -300,9 +348,7 @@ export default function DashboardPage() {
                         {icon}
                       </div>
                       <div>
-                        <div className="text-sm font-medium">
-                          {r.name}
-                        </div>
+                        <div className="text-sm font-medium">{r.name}</div>
                         <div className="text-xs text-gray-500">
                           Room {r.roomNumber || "—"} •{" "}
                           {(r.status || "").charAt(0).toUpperCase() +
@@ -320,7 +366,7 @@ export default function DashboardPage() {
           )}
         </Card>
 
-       
+     
         <Card>
           <div className="font-semibold mb-3 text-sm">Occupancy Rate</div>
 
@@ -332,14 +378,17 @@ export default function DashboardPage() {
               <svg
                 width={donutSize}
                 height={donutSize}
-                viewBox={`0 0 ${donutSize} ${donutSize}`}
+                viewBox={"0 0 " + donutSize + " " + donutSize}
               >
                 <g
-                  transform={`translate(${donutSize / 2}, ${
-                    donutSize / 2
-                  })`}
+                  transform={
+                    "translate(" +
+                    donutSize / 2 +
+                    "," +
+                    donutSize / 2 +
+                    ")"
+                  }
                 >
-                 
                   <circle
                     r={radius}
                     fill="none"
@@ -347,48 +396,45 @@ export default function DashboardPage() {
                     strokeWidth={stroke}
                   />
 
-                 
                   {segOccupied > 0 && (
                     <circle
                       r={radius}
                       fill="none"
                       stroke="#10b981"
                       strokeWidth={stroke}
-                      strokeDasharray={`${dashOcc} ${
-                        circumference - dashOcc
-                      }`}
+                      strokeDasharray={
+                        dashOcc + " " + (circumference - dashOcc)
+                      }
                       strokeDashoffset={offsetOcc}
                       strokeLinecap="round"
                       transform="rotate(-90)"
                     />
                   )}
 
-                 
                   {segAvailable > 0 && (
                     <circle
                       r={radius}
                       fill="none"
                       stroke="#06b6d4"
                       strokeWidth={stroke}
-                      strokeDasharray={`${dashAvail} ${
-                        circumference - dashAvail
-                      }`}
+                      strokeDasharray={
+                        dashAvail + " " + (circumference - dashAvail)
+                      }
                       strokeDashoffset={offsetAvail}
                       strokeLinecap="round"
                       transform="rotate(-90)"
                     />
                   )}
 
-                
                   {segMaintenance > 0 && (
                     <circle
                       r={radius}
                       fill="none"
                       stroke="#f59e0b"
                       strokeWidth={stroke}
-                      strokeDasharray={`${dashMaint} ${
-                        circumference - dashMaint
-                      }`}
+                      strokeDasharray={
+                        dashMaint + " " + (circumference - dashMaint)
+                      }
                       strokeDashoffset={offsetMaint}
                       strokeLinecap="round"
                       transform="rotate(-90)"
@@ -401,9 +447,7 @@ export default function DashboardPage() {
                 <div className="text-4xl font-extrabold">
                   {occupancyRate}%
                 </div>
-                <div className="text-sm text-gray-500 -mt-1">
-                  occupied
-                </div>
+                <div className="text-sm text-gray-500 -mt-1">occupied</div>
               </div>
             </div>
 
