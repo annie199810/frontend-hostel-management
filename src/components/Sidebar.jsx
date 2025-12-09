@@ -10,7 +10,7 @@ export default function Sidebar({
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  const menu = [
+  const rawMenu = [
     { key: "about", emoji: "ℹ️", label: "About" },
     { key: "dashboard", emoji: "🏠", label: "Dashboard" },
     { key: "rooms", emoji: "🛏️", label: "Room Management" },
@@ -18,8 +18,11 @@ export default function Sidebar({
     { key: "maintenance", emoji: "🛠️", label: "Maintenance" },
     { key: "billing", emoji: "💰", label: "Billing" },
     { key: "reports", emoji: "📊", label: "Reports" },
-    { key: "users", emoji: "🧑‍💼", label: "User Management" },
+    { key: "users", emoji: "🧑‍💼", label: "User Management", adminOnly: true },
   ];
+
+ 
+  const menu = rawMenu.filter((m) => !m.adminOnly || user?.role === "Admin");
 
   function handleLogout() {
     logout();
@@ -32,7 +35,7 @@ export default function Sidebar({
         ${collapsed ? "w-20" : "w-64"} transition-all duration-200`}
       aria-label="Sidebar navigation"
     >
-      
+    
       <div className="px-4 py-5 border-b border-[#122033] flex items-center gap-3">
         <div className="h-10 w-10 rounded-full bg-indigo-500 flex items-center justify-center text-white font-semibold shadow-sm">
           {(user?.name?.[0] || "A").toUpperCase()}
@@ -50,17 +53,17 @@ export default function Sidebar({
         )}
       </div>
 
-     
+    
       <nav className="flex-1 overflow-y-auto px-3 py-4" role="navigation">
         <ul className="flex flex-col gap-2">
-          {menu.map((m) => {
+          {menu.map((m) => {   
             const isActive = active === m.key;
 
             return (
               <li key={m.key}>
                 <button
                   type="button"
-                  onClick={function () {
+                  onClick={() => {
                     if (m.key === "about") navigate("/about");
                     else onSelect(m.key);
                   }}
@@ -79,9 +82,7 @@ export default function Sidebar({
                   </span>
 
                   {!collapsed && (
-                    <span className="flex-1 text-left truncate">
-                      {m.label}
-                    </span>
+                    <span className="flex-1 text-left truncate">{m.label}</span>
                   )}
                 </button>
               </li>
