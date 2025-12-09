@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Card from "../components/Card";
 import StatusModal from "../components/StatusModal";
-import { useAuth } from "../auth/AuthProvider";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
@@ -33,6 +32,36 @@ function formatCurrency(amount) {
   return "₹" + Number(amount).toLocaleString("en-IN");
 }
 
+function formatDateForInput(iso) {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toISOString().slice(0, 10);
+  } catch (e) {
+    return iso;
+  }
+}
+
+function getAuthToken() {
+  try {
+    return (
+      localStorage.getItem("authToken") ||
+      localStorage.getItem("token") ||
+      ""
+    );
+  } catch (e) {
+    return "";
+  }
+}
+
+function withAuth(headers) {
+  const t = getAuthToken();
+  if (!t) return headers || {};
+  return Object.assign({}, headers || {}, {
+    Authorization: "Bearer " + t,
+  });
+}
+
+
 function StatusChip(props) {
   const status = props.status;
   const base =
@@ -60,18 +89,7 @@ function StatusChip(props) {
 }
 
 
-
 export default function BillingPage() {
-  const { token } = useAuth();
-
-  
-  function buildHeaders(includeJson) {
-    const h = {};
-    if (includeJson) h["Content-Type"] = "application/json";
-    if (token) h.Authorization = "Bearer " + token;
-    return h;
-  }
-
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -82,32 +100,29 @@ export default function BillingPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [showInvoice, setShowInvoice] = useState(false);
   const [showView, setShowView] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
 
   const [addForm, setAddForm] = useState({
     residentName: "",
     roomNumber: "",
     amount: "",
     month: "",
-    dueDate: addDaysISO(30),
+    dueDate: "",
     status: "Pending",
     method: "Cash",
     notes: "",
   });
 
   const [invoiceData, setInvoiceData] = useState({
-    invoiceNo: invoiceFallback(),
+    invoiceNo: "",
     residentName: "",
     roomNumber: "",
     month: "",
     amount: "",
-    dueDate: addDaysISO(30),
+    dueDate: "",
     notes: "Thank you for your payment.",
   });
 
-  const [viewPayment, setViewPayment] = useState(null);
-
- 
-  const [showEdit, setShowEdit] = useState(false);
   const [editForm, setEditForm] = useState({
     _id: "",
     residentName: "",
@@ -119,6 +134,8 @@ export default function BillingPage() {
     method: "Cash",
     notes: "",
   });
+
+  const [viewPayment, setViewPayment] = useState(null);
 
   
   const [payNowOpen, setPayNowOpen] = useState(false);
@@ -132,6 +149,7 @@ export default function BillingPage() {
   const [cardName, setCardName] = useState("");
   const [authorize, setAuthorize] = useState(false);
 
+ 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalType, setModalType] = useState("success");
   const [modalMessage, setModalMessage] = useState("");
@@ -141,6 +159,7 @@ export default function BillingPage() {
     setModalMessage(msg);
     setModalOpen(true);
   }
+
   function showError(msg) {
     setModalType("error");
     setModalMessage(
@@ -150,49 +169,49 @@ export default function BillingPage() {
   }
 
   
-  useEffect(
-    function () {
-      let mounted = true;
+  useEffect(function () {
+    let mounted = true;
 
-      async function load() {
-        if (!token) return; 
+    async function load() {
+      setLoading(true);
+      setError("");
 
-        setLoading(true);
-        setError("");
+      try {
+        const res = await fetch(API_BASE + "/api/billing", {
+          headers: withAuth(),
+        });
 
-        try {
-          const res = await fetch(API_BASE + "/api/billing", {
-            headers: buildHeaders(false),
-          });
-          if (!res.ok) {
-            throw new Error("Failed to load (" + res.status + ")");
-          }
-          const data = await res.json();
-
-          const list = (data.payments || []).map(function (p) {
-            return Object.assign({}, p, {
-              invoiceNo: p.invoiceNo || invoiceFallback(),
-            });
-          });
-
-          if (mounted) setPayments(list);
-        } catch (err) {
-          console.error("load billing err", err);
-          if (mounted) setError("Failed to load billing records.");
-        } finally {
-          if (mounted) setLoading(false);
+        if (!res.ok) {
+          throw new Error("Failed to load (" + res.status + ")");
         }
+
+        const data = await res.json();
+
+        const list = (data.payments || []).map(function (p) {
+          return Object.assign({}, p, {
+            invoiceNo: p.invoiceNo || invoiceFallback(),
+          });
+        });
+
+        if (mounted) setPayments(list);
+      } catch (err) {
+        console.error("load billing err", err);
+        if (mounted)
+          setError(
+            "Unable to load billing records at the moment. Please try again shortly."
+          );
+      } finally {
+        if (mounted) setLoading(false);
       }
+    }
 
-      load();
-      return function () {
-        mounted = false;
-      };
-    },
-    [token]
-  );
+    load();
+    return function () {
+      mounted = false;
+    };
+  }, []);
 
-  
+ 
   const stats = useMemo(
     function () {
       var total = payments.length;
@@ -217,15 +236,18 @@ export default function BillingPage() {
     [payments]
   );
 
- 
   const filtered = useMemo(
     function () {
       const q = (search || "").toLowerCase();
       return payments.filter(function (p) {
         const matchText =
           !q ||
-          (p.residentName || "").toLowerCase().indexOf(q) !== -1 ||
-          String(p.roomNumber || "").toLowerCase().indexOf(q) !== -1 ||
+          (p.residentName || "")
+            .toLowerCase()
+            .indexOf(q) !== -1 ||
+          String(p.roomNumber || "")
+            .toLowerCase()
+            .indexOf(q) !== -1 ||
           (p.month || "").toLowerCase().indexOf(q) !== -1;
 
         const matchStatus =
@@ -237,21 +259,20 @@ export default function BillingPage() {
     [payments, search, statusFilter]
   );
 
-  
+
   async function markAsPaid(id) {
     if (!id) throw new Error("Invoice id missing");
     const url = API_BASE + "/api/billing/" + id + "/pay";
 
     const res = await fetch(url, {
       method: "PATCH",
-      headers: buildHeaders(true),
+      headers: withAuth({ "Content-Type": "application/json" }),
       body: JSON.stringify({ method: "Manual" }),
     });
 
-    let text = "";
-    try {
-      text = await res.text();
-    } catch (e) {}
+    const text = await res.text().catch(function () {
+      return "";
+    });
 
     var data = null;
     try {
@@ -297,7 +318,7 @@ export default function BillingPage() {
     if (method === "Card") {
       if (!authorize) {
         showError(
-          "Please authorize this payment by selecting the checkbox."
+          "Please authorise this payment by selecting the confirmation checkbox."
         );
         return;
       }
@@ -325,7 +346,7 @@ export default function BillingPage() {
       try {
         const r1 = await fetch(API_BASE + "/api/payments", {
           method: "POST",
-          headers: buildHeaders(true),
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
         if (r1.ok) {
@@ -343,7 +364,6 @@ export default function BillingPage() {
         );
       }
 
-      
       const updated = await markAsPaid(payNowTarget._id);
 
       setPayments(function (prev) {
@@ -358,7 +378,7 @@ export default function BillingPage() {
         });
       });
 
-      showSuccess("Payment has been processed successfully.");
+      showSuccess("The payment has been processed successfully.");
 
       setPaymentMethod("Card");
       setCardNumber("");
@@ -370,13 +390,15 @@ export default function BillingPage() {
       setPayNowTarget(null);
     } catch (err) {
       console.error("confirmPayNow err", err);
-      showError("Payment could not be processed. Please try again.");
+      showError(
+        "The payment could not be processed at the moment. Please try again."
+      );
     } finally {
       setPayNowProcessing(false);
     }
   }
 
-  
+ 
   async function submitAdd(e) {
     e.preventDefault();
 
@@ -386,7 +408,7 @@ export default function BillingPage() {
       !addForm.amount ||
       !addForm.month
     ) {
-      showError("Please fill in all required fields.");
+      showError("Please complete all required fields before saving.");
       return;
     }
 
@@ -406,14 +428,16 @@ export default function BillingPage() {
     try {
       const res = await fetch(API_BASE + "/api/billing", {
         method: "POST",
-        headers: buildHeaders(true),
+        headers: withAuth({ "Content-Type": "application/json" }),
         body: JSON.stringify(payload),
       });
       const data = await res.json();
 
       if (!res.ok || !data.ok) {
         console.error("submitAdd backend err:", data);
-        showError("Unable to save the payment. Please try again.");
+        showError(
+          "We were unable to save this payment record. Please try again."
+        );
         return;
       }
 
@@ -423,27 +447,27 @@ export default function BillingPage() {
       setPayments(function (prev) {
         return [saved].concat(prev);
       });
-
       setShowAdd(false);
-      showSuccess("Payment has been added successfully.");
+      showSuccess("Payment record has been added successfully.");
     } catch (err) {
       console.error("submitAdd err", err);
-      showError("Network error. Please try again in a moment.");
+      showError(
+        "A network error occurred while saving. Please try again in a moment."
+      );
     }
   }
 
-  
-  function openEdit(row) {
+  function openEdit(p) {
     setEditForm({
-      _id: row._id,
-      residentName: row.residentName || "",
-      roomNumber: row.roomNumber || "",
-      amount: row.amount != null ? String(row.amount) : "",
-      month: row.month || "",
-      dueDate: row.dueDate || "",
-      status: row.status || "Pending",
-      method: row.method || "Cash",
-      notes: row.notes || "",
+      _id: p._id,
+      residentName: p.residentName || "",
+      roomNumber: p.roomNumber || "",
+      amount: p.amount != null ? String(p.amount) : "",
+      month: p.month || "",
+      dueDate: formatDateForInput(p.dueDate),
+      status: p.status || "Pending",
+      method: p.method || "Cash",
+      notes: p.notes || "",
     });
     setShowEdit(true);
   }
@@ -451,19 +475,18 @@ export default function BillingPage() {
   async function submitEdit(e) {
     e.preventDefault();
 
+    if (!editForm._id) {
+      showError("Payment reference is missing.");
+      return;
+    }
+
     if (
       !editForm.residentName ||
       !editForm.roomNumber ||
       !editForm.amount ||
       !editForm.month
     ) {
-      showError("Please fill in all required fields.");
-      return;
-    }
-
-    const id = editForm._id;
-    if (!id) {
-      showError("Missing payment id.");
+      showError("Please complete all required fields before saving.");
       return;
     }
 
@@ -472,16 +495,16 @@ export default function BillingPage() {
       roomNumber: editForm.roomNumber,
       amount: Number(editForm.amount),
       month: editForm.month,
-      status: editForm.status || "Pending",
-      method: editForm.method || "Cash",
       dueDate: editForm.dueDate || "",
+      status: editForm.status,
+      method: editForm.method,
       notes: editForm.notes || "",
     };
 
     try {
-      const res = await fetch(API_BASE + "/api/billing/" + id, {
+      const res = await fetch(API_BASE + "/api/billing/" + editForm._id, {
         method: "PUT",
-        headers: buildHeaders(true),
+        headers: withAuth({ "Content-Type": "application/json" }),
         body: JSON.stringify(payload),
       });
 
@@ -491,86 +514,90 @@ export default function BillingPage() {
 
       if (!res.ok || data.ok === false) {
         console.error("submitEdit backend err:", data);
-        showError("Unable to update the payment. Please try again.");
+        showError(
+          "Unable to update the payment at the moment. Please try again."
+        );
         return;
       }
 
-      const updated = data.payment || data || payload;
+      const updated = data.payment || data.updated || data;
 
       setPayments(function (prev) {
         return prev.map(function (p) {
-          return p._id === id ? Object.assign({}, p, updated) : p;
+          if (p._id !== editForm._id) return p;
+          return Object.assign({}, p, updated);
         });
       });
 
       setShowEdit(false);
-      showSuccess("Payment has been updated successfully.");
+      showSuccess("Payment record has been updated successfully.");
     } catch (err) {
       console.error("submitEdit err", err);
-      showError("Network error. Please try again in a moment.");
+      showError(
+        "A network error occurred while updating. Please try again."
+      );
     }
   }
 
-  
-  async function handleDelete(row) {
+  async function handleDelete(p) {
+    if (!p || !p._id) return;
+
     const ok = window.confirm(
-      "Delete payment for room " + (row.roomNumber || "") + "?"
+      "Are you sure you want to delete this payment record for room " +
+        (p.roomNumber || "") +
+        "?\n\nThis action cannot be undone."
     );
     if (!ok) return;
 
     try {
-      const res = await fetch(API_BASE + "/api/billing/" + row._id, {
+      const res = await fetch(API_BASE + "/api/billing/" + p._id, {
         method: "DELETE",
-        headers: buildHeaders(false),
+        headers: withAuth(),
       });
 
-      let data = {};
-      try {
-        data = await res.json();
-      } catch (e) {}
+      const data = await res.json().catch(function () {
+        return {};
+      });
 
       if (!res.ok || data.ok === false) {
-        console.error("delete payment backend err:", data);
-        showError("Delete failed (" + res.status + ").");
+        console.error("delete billing backend err:", data);
+        showError(
+          "Unable to delete this payment record at the moment. Please try again."
+        );
         return;
       }
 
       setPayments(function (prev) {
-        return prev.filter(function (p) {
-          return p._id !== row._id;
+        return prev.filter(function (x) {
+          return x._id !== p._id;
         });
       });
 
-      showSuccess("Payment has been deleted.");
+      showSuccess("Payment record has been deleted.");
     } catch (err) {
       console.error("handleDelete err", err);
-      showError("Network error while deleting. Please try again.");
+      showError(
+        "A network error occurred while deleting. Please try again."
+      );
     }
   }
 
-
+  
   function openView(p) {
     setViewPayment(p);
     setShowView(true);
   }
 
   function sendReminder() {
-    showSuccess("A payment reminder has been sent to the resident.");
-  }
-
-  function formatDateForInput(iso) {
-    if (!iso) return "";
-    try {
-      return new Date(iso).toISOString().slice(0, 10);
-    } catch (e) {
-      return iso;
-    }
+    showSuccess(
+      "A payment reminder has been noted for this resident."
+    );
   }
 
   
   return (
     <main className="p-4 sm:p-6 bg-gray-50 min-h-screen space-y-6">
-      
+     
       <div className="flex justify-between items-start flex-wrap gap-3">
         <div>
           <p className="text-sm text-gray-500">
@@ -586,7 +613,7 @@ export default function BillingPage() {
                 roomNumber: "",
                 amount: "",
                 month: "",
-                dueDate: addDaysISO(30),
+                dueDate: "",
                 status: "Pending",
                 method: "Cash",
                 notes: "",
@@ -618,14 +645,19 @@ export default function BillingPage() {
         </div>
       </div>
 
+      
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
-          <div className="text-xs text-gray-500">Total Payments</div>
+          <div className="text-xs text-gray-500">
+            Total Payments
+          </div>
           <div className="text-3xl font-bold">{stats.total}</div>
         </Card>
 
         <Card>
-          <div className="text-xs text-gray-500">Total Amount</div>
+          <div className="text-xs text-gray-500">
+            Total Amount
+          </div>
           <div className="text-2xl font-bold text-purple-600">
             {formatCurrency(stats.totalAmount)}
           </div>
@@ -646,7 +678,7 @@ export default function BillingPage() {
         </Card>
       </section>
 
-     
+      
       <Card title="Payment History">
         <div className="flex flex-wrap gap-3 mb-4 items-center">
           <input
@@ -676,7 +708,7 @@ export default function BillingPage() {
 
         {loading && (
           <p className="text-center py-6 text-gray-500 text-sm">
-            Loading…
+            Loading payments…
           </p>
         )}
         {error && (
@@ -703,8 +735,7 @@ export default function BillingPage() {
               <tbody>
                 {filtered.map(function (p) {
                   const isPaid = p.status === "Paid";
-                  const isPendingLike =
-                    p.status === "Pending" || p.status === "Overdue";
+                  const isPending = p.status === "Pending";
 
                   return (
                     <tr key={p._id} className="border-b">
@@ -720,7 +751,9 @@ export default function BillingPage() {
                       </td>
                       <td className="px-3 py-3">
                         {p.dueDate
-                          ? new Date(p.dueDate).toLocaleDateString()
+                          ? new Date(
+                              p.dueDate
+                            ).toLocaleDateString()
                           : "-"}
                       </td>
                       <td className="px-3 py-3">
@@ -729,7 +762,6 @@ export default function BillingPage() {
 
                       <td className="px-3 py-3">
                         <div className="flex flex-wrap gap-2">
-                          
                           <button
                             onClick={function () {
                               openView(p);
@@ -739,63 +771,57 @@ export default function BillingPage() {
                             View
                           </button>
 
-                          
-                          {isPendingLike && (
-                            <>
-                              <button
-                                onClick={function () {
-                                  openPayNow(p);
-                                }}
-                                className="px-2 py-1 text-xs bg-green-600 text-white rounded"
-                              >
-                                Pay Now
-                              </button>
-
-                              <button
-                                onClick={function () {
-                                  openEdit(p);
-                                }}
-                                className="px-2 py-1 text-xs bg-sky-50 text-sky-700 rounded border border-sky-100"
-                              >
-                                Edit
-                              </button>
-
-                              <button
-                                onClick={function () {
-                                  handleDelete(p);
-                                }}
-                                className="px-2 py-1 text-xs bg-rose-50 text-rose-700 rounded border border-rose-100"
-                              >
-                                Delete
-                              </button>
-                            </>
+                        
+                          {isPending && (
+                            <button
+                              onClick={function () {
+                                openPayNow(p);
+                              }}
+                              className="px-2 py-1 text-xs bg-green-600 text-white rounded"
+                            >
+                              Pay Now
+                            </button>
                           )}
 
-                          
+                         
                           {isPaid && (
-                            <>
-                              <button
-                                disabled
-                                className="px-2 py-1 text-xs rounded bg-emerald-600 text-white opacity-70 cursor-default"
-                              >
-                                Mark Paid
-                              </button>
-
-                              <button
-                                disabled
-                                className="px-2 py-1 text-xs bg-slate-100 text-slate-400 rounded cursor-not-allowed"
-                              >
-                                Edit
-                              </button>
-
-                              <button
-                                disabled
-                                className="px-2 py-1 text-xs bg-slate-100 text-slate-400 rounded cursor-not-allowed"
-                              >
-                                Delete
-                              </button>
-                            </>
+                            <button
+                              disabled
+                              className="px-2 py-1 text-xs bg-emerald-700 text-white rounded opacity-70 cursor-default"
+                            >
+                              Mark Paid
+                            </button>
                           )}
+
+                          <button
+                            onClick={function () {
+                              if (!isPaid) openEdit(p);
+                            }}
+                            disabled={isPaid}
+                            className={
+                              "px-2 py-1 text-xs rounded " +
+                              (isPaid
+                                ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                                : "bg-sky-50 text-sky-700")
+                            }
+                          >
+                            Edit
+                          </button>
+
+                          <button
+                            onClick={function () {
+                              if (!isPaid) handleDelete(p);
+                            }}
+                            disabled={isPaid}
+                            className={
+                              "px-2 py-1 text-xs rounded " +
+                              (isPaid
+                                ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                                : "bg-rose-50 text-rose-700")
+                            }
+                          >
+                            Delete
+                          </button>
 
                           <button
                             onClick={function () {
@@ -832,7 +858,6 @@ export default function BillingPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div className="relative z-10 bg-white rounded-2xl shadow-[0_30px_60px_rgba(2,6,23,0.35)] w-full max-w-3xl mx-auto border border-slate-100 overflow-hidden">
-           
             <div
               className="flex items-start justify-between p-5 border-b"
               style={{
@@ -861,7 +886,7 @@ export default function BillingPage() {
               </button>
             </div>
 
-           
+            
             <div
               className="p-4 border-b"
               style={{
@@ -871,19 +896,25 @@ export default function BillingPage() {
             >
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start text-sm">
                 <div>
-                  <div className="text-xs text-slate-500">Invoice</div>
+                  <div className="text-xs text-slate-500">
+                    Invoice
+                  </div>
                   <div className="font-semibold text-slate-800">
                     {payNowTarget.invoiceNo}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs text-slate-500">Resident</div>
+                  <div className="text-xs text-slate-500">
+                    Resident
+                  </div>
                   <div className="font-semibold text-slate-800">
                     {payNowTarget.residentName}
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-xs text-slate-500">Amount</div>
+                  <div className="text-xs text-slate-500">
+                    Amount
+                  </div>
                   <div className="font-semibold text-sky-900 text-lg">
                     {formatCurrency(payNowTarget.amount)}
                   </div>
@@ -891,17 +922,16 @@ export default function BillingPage() {
               </div>
             </div>
 
-           
+          
             <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
+             
               <div className="lg:col-span-2">
                 <div className="mb-3 text-sm font-semibold text-slate-700">
                   Payment Method
                 </div>
 
-               
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                
+                  
                   <label
                     className={
                       "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition " +
@@ -991,7 +1021,7 @@ export default function BillingPage() {
                     </div>
                   </label>
 
-                  
+                 
                   <label
                     className={
                       "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition " +
@@ -1062,7 +1092,7 @@ export default function BillingPage() {
                           className="mt-1"
                         />
                         <div className="text-slate-600">
-                          I authorize this payment and agree to the{" "}
+                          I authorise this payment and agree to the{" "}
                           <span className="underline">
                             terms and conditions
                           </span>
@@ -1104,7 +1134,7 @@ export default function BillingPage() {
                           </div>
                           <div className="text-xs">
                             Scan the QR using any UPI app (Google
-                            Pay, PhonePe, Paytm)
+                            Pay, PhonePe, Paytm).
                           </div>
                           <div className="mt-2 font-medium text-slate-800">
                             your-upi-id@upi
@@ -1116,33 +1146,40 @@ export default function BillingPage() {
 
                   {paymentMethod === "PayPal" && (
                     <div className="p-3 border rounded text-sm text-slate-700 bg-white">
-                      Resident will be redirected to PayPal
-                      (simulated).
+                      The resident will be redirected to PayPal
+                      (simulated) to complete this payment.
                     </div>
                   )}
 
                   {paymentMethod === "Cash" && (
                     <div className="p-3 border rounded text-sm text-slate-700 bg-white">
-                      Collect cash at the office and mark as Paid.
+                      Collect cash at the office and then mark this
+                      invoice as paid.
                     </div>
                   )}
                 </div>
               </div>
 
-           
+             
               <aside className="order-first lg:order-last">
                 <div className="border rounded-lg p-4 shadow-sm bg-white w-full">
-                  <div className="text-xs text-slate-500">Invoice</div>
+                  <div className="text-xs text-slate-500">
+                    Invoice
+                  </div>
                   <div className="font-semibold mb-3 text-slate-800">
                     {payNowTarget.invoiceNo}
                   </div>
 
-                  <div className="text-xs text-slate-500">Resident</div>
+                  <div className="text-xs text-slate-500">
+                    Resident
+                  </div>
                   <div className="font-medium mb-3">
                     {payNowTarget.residentName}
                   </div>
 
-                  <div className="text-xs text-slate-500">Amount</div>
+                  <div className="text-xs text-slate-500">
+                    Amount
+                  </div>
                   <div className="text-2xl font-bold text-sky-800 mb-4">
                     {formatCurrency(payNowTarget.amount)}
                   </div>
@@ -1165,8 +1202,8 @@ export default function BillingPage() {
                   </table>
 
                   <div className="mt-4 text-xs text-slate-500">
-                    Paid via selected method will update the invoice
-                    status.
+                    Once processed, the invoice status will be updated
+                    to <span className="font-semibold">Paid</span>.
                   </div>
                 </div>
               </aside>
@@ -1302,7 +1339,8 @@ export default function BillingPage() {
                   Notes
                 </p>
                 <p className="text-sm text-slate-700 whitespace-pre-wrap">
-                  {viewPayment.notes && viewPayment.notes.trim() !== ""
+                  {viewPayment.notes &&
+                  viewPayment.notes.trim() !== ""
                     ? viewPayment.notes
                     : "No special notes for this payment."}
                 </p>
@@ -1332,7 +1370,7 @@ export default function BillingPage() {
         </div>
       )}
 
-    
+      
       {showAdd && (
         <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-slate-900/40" />
@@ -1489,7 +1527,7 @@ export default function BillingPage() {
         </div>
       )}
 
-      
+     
       {showEdit && (
         <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-slate-900/40" />
@@ -1583,6 +1621,7 @@ export default function BillingPage() {
                       );
                     }}
                     className="w-full border rounded px-3 py-2"
+                    placeholder="Dec 2025"
                     required
                   />
                 </div>
@@ -1635,7 +1674,7 @@ export default function BillingPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-3 py-1.5 text-sm rounded bg-sky-600 text-white"
+                  className="px-3 py-1.5 text-sm rounded bg-emerald-600 text-white"
                 >
                   Save Changes
                 </button>
@@ -1671,7 +1710,80 @@ export default function BillingPage() {
 
             <form
               className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm"
-              onSubmit={handleGenerateInvoice}
+              onSubmit={function (e) {
+                e.preventDefault();
+               
+                if (
+                  !invoiceData.residentName ||
+                  !invoiceData.roomNumber ||
+                  !invoiceData.amount ||
+                  !invoiceData.month
+                ) {
+                  showError(
+                    "Please complete all required fields before generating the invoice."
+                  );
+                  return;
+                }
+
+                const payload = {
+                  residentName: invoiceData.residentName,
+                  roomNumber: invoiceData.roomNumber,
+                  amount: Number(invoiceData.amount),
+                  month: invoiceData.month,
+                  status: "Pending",
+                  method: "UPI",
+                  dueDate:
+                    invoiceData.dueDate || addDaysISO(30),
+                  paidOn: "",
+                  notes: invoiceData.notes || "",
+                  invoiceNo:
+                    invoiceData.invoiceNo || invoiceFallback(),
+                };
+
+                (async function () {
+                  try {
+                    const res = await fetch(API_BASE + "/api/billing", {
+                      method: "POST",
+                      headers: withAuth({
+                        "Content-Type": "application/json",
+                      }),
+                      body: JSON.stringify(payload),
+                    });
+                    const data = await res.json();
+
+                    if (!res.ok || !data.ok) {
+                      console.error(
+                        "handleGenerateInvoice backend err:",
+                        data
+                      );
+                      showError(
+                        "Unable to generate the invoice at the moment. Please try again."
+                      );
+                      return;
+                    }
+
+                    const saved = data.payment || payload;
+                    saved.invoiceNo =
+                      saved.invoiceNo || invoiceFallback();
+
+                    setPayments(function (prev) {
+                      return [saved].concat(prev);
+                    });
+                    setShowInvoice(false);
+                    showSuccess(
+                      "Invoice has been generated successfully."
+                    );
+                  } catch (err) {
+                    console.error(
+                      "handleGenerateInvoice err",
+                      err
+                    );
+                    showError(
+                      "A network error occurred while generating the invoice. Please try again."
+                    );
+                  }
+                })();
+              }}
             >
               <div className="md:col-span-2">
                 <label className="block text-xs text-slate-500 mb-1">
@@ -1769,7 +1881,9 @@ export default function BillingPage() {
                 </label>
                 <input
                   type="date"
-                  value={formatDateForInput(invoiceData.dueDate)}
+                  value={formatDateForInput(
+                    invoiceData.dueDate
+                  )}
                   onChange={function (e) {
                     setInvoiceData(
                       Object.assign({}, invoiceData, {
@@ -1837,7 +1951,7 @@ export default function BillingPage() {
         </div>
       )}
 
-     
+      
       <StatusModal
         open={modalOpen}
         type={modalType}
