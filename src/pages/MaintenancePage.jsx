@@ -1,3 +1,4 @@
+
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Card from "../components/Card";
 import StatusModal from "../components/StatusModal";
@@ -16,6 +17,7 @@ async function safeFetchJson(url, opts) {
 }
 
 
+
 function StatusBadge(props) {
   const v = props.value || "Open";
   const cls =
@@ -31,7 +33,6 @@ function StatusBadge(props) {
     </span>
   );
 }
-
 
 function PriorityBadge(props) {
   const v = props.value || "Medium";
@@ -49,6 +50,8 @@ function PriorityBadge(props) {
   );
 }
 
+
+
 export default function MaintenancePage() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -59,7 +62,7 @@ export default function MaintenancePage() {
   const [priorityFilter, setPriorityFilter] = useState("all");
 
   const [showForm, setShowForm] = useState(false);
-  const [formMode, setFormMode] = useState("add");
+  const [formMode, setFormMode] = useState("add"); 
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState("");
 
@@ -76,11 +79,23 @@ export default function MaintenancePage() {
     _id: undefined,
   });
 
+  
+  const [statusOpen, setStatusOpen] = useState(false);
+  const [statusType, setStatusType] = useState("success");
+  const [statusMessage, setStatusMessage] = useState("");
 
+  
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [rowToDelete, setRowToDelete] = useState(null);
 
- 
+  function showStatus(type, message) {
+    setStatusType(type);
+    setStatusMessage(message);
+    setStatusOpen(true);
+  }
+
+  
+
   useEffect(function () {
     let mounted = true;
 
@@ -109,7 +124,8 @@ export default function MaintenancePage() {
     };
   }, []);
 
- 
+  
+
   const filteredItems = useMemo(
     function () {
       const q = (search || "").trim().toLowerCase();
@@ -132,6 +148,7 @@ export default function MaintenancePage() {
     [items, search, statusFilter, priorityFilter]
   );
 
+ 
 
   function openAddForm() {
     setFormMode("add");
@@ -154,10 +171,9 @@ export default function MaintenancePage() {
     }, 60);
   }
 
- 
   function openEditForm(row) {
     
-    if (row.status === "Closed") return;
+    if ((row.status || "") === "Closed") return;
 
     setFormMode("edit");
     setFormData({
@@ -185,12 +201,11 @@ export default function MaintenancePage() {
     });
   }
 
-  
   async function handleFormSubmit(e) {
     e.preventDefault();
 
     if (!formData.roomNumber || !formData.issue) {
-      alert("Please enter room number and a short issue title.");
+      showStatus("error", "Please enter room number and a short issue title.");
       return;
     }
 
@@ -264,11 +279,12 @@ export default function MaintenancePage() {
       setShowForm(false);
     } catch (err) {
       console.error("Maintenance save error:", err);
-      alert(err.message || "Failed to save request.");
+      showStatus("error", err.message || "Failed to save request.");
     } finally {
       setSaving(false);
     }
   }
+
 
 
   function handleDeleteClick(row) {
@@ -276,61 +292,51 @@ export default function MaintenancePage() {
     setConfirmOpen(true);
   }
 
- 
   async function handleConfirmDelete() {
-    const row = rowToDelete;
-    if (!row) {
-      setConfirmOpen(false);
-      return;
-    }
+    if (!rowToDelete) return;
 
     try {
-      const { res } = await safeFetchJson(
-        API_BASE + "/api/maintenance/" + row._id,
+      const { res, json } = await safeFetchJson(
+        API_BASE + "/api/maintenance/" + rowToDelete._id,
         { method: "DELETE" }
       );
 
-      
-      if (res.ok) {
-        setItems(function (prev) {
-          return prev.filter(function (r) {
-            return r._id !== row._id;
-          });
-        });
-      } else {
-        setItems(function (prev) {
-          return prev.filter(function (r) {
-            return r._id !== row._id;
-          });
-        });
+      if (!res.ok) {
+        throw new Error(
+          (json && (json.error || json.message)) ||
+            "Delete failed (" + res.status + ")"
+        );
       }
-    } catch (err) {
-      console.error("Delete maintenance error:", err);
+
       setItems(function (prev) {
         return prev.filter(function (r) {
-          return r._id !== row._id;
+          return r._id !== rowToDelete._id;
         });
       });
+
+      showStatus("success", "Request deleted successfully.");
+    } catch (err) {
+      console.error("Delete maintenance error:", err);
+      showStatus("error", err.message || "Failed to delete request.");
     } finally {
       setConfirmOpen(false);
       setRowToDelete(null);
     }
   }
 
+  
 
   function handleMarkDone(row) {
     if (row.status === "Closed") return;
 
-    
+    const updatedRow = Object.assign({}, row, { status: "Closed" });
+
     setItems(function (prev) {
       return prev.map(function (r) {
-        return r._id === row._id
-          ? Object.assign({}, r, { status: "Closed" })
-          : r;
+        return r._id === row._id ? updatedRow : r;
       });
     });
 
-   
     fetch(API_BASE + "/api/maintenance/" + row._id + "/status", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -340,8 +346,20 @@ export default function MaintenancePage() {
     });
   }
 
+ 
+
   return (
     <main className="p-4 sm:p-6 space-y-6">
+      
+      <StatusModal
+        open={statusOpen}
+        type={statusType}
+        message={statusMessage}
+        onClose={function () {
+          setStatusOpen(false);
+        }}
+      />
+
       
       <StatusModal
         open={confirmOpen}
@@ -360,7 +378,7 @@ export default function MaintenancePage() {
         cancelLabel="Cancel"
       />
 
-    
+      
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <p className="text-sm text-gray-600 mt-1">
@@ -384,14 +402,12 @@ export default function MaintenancePage() {
 
       <Card>
         {loading ? (
-          <div className="p-4 text-gray-600">
-            Loading maintenance requests…
-          </div>
+          <div className="p-4 text-gray-600">Loading maintenance requests…</div>
         ) : error ? (
           <div className="p-4 text-red-600">{error}</div>
         ) : (
           <>
-          
+           
             <div className="flex flex-wrap items-center gap-3 mb-4">
               <input
                 aria-label="Search maintenance"
@@ -435,20 +451,14 @@ export default function MaintenancePage() {
               </div>
             </div>
 
-            
+           
             <div className="overflow-x-auto w-full">
               <table className="min-w-full text-sm table-auto border-t border-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-3 py-2 text-left font-semibold">
-                      Room
-                    </th>
-                    <th className="px-3 py-2 text-left font-semibold">
-                      Issue
-                    </th>
-                    <th className="px-3 py-2 text-left font-semibold">
-                      Type
-                    </th>
+                    <th className="px-3 py-2 text-left font-semibold">Room</th>
+                    <th className="px-3 py-2 text-left font-semibold">Issue</th>
+                    <th className="px-3 py-2 text-left font-semibold">Type</th>
                     <th className="px-3 py-2 text-left font-semibold">
                       Priority
                     </th>
@@ -480,7 +490,7 @@ export default function MaintenancePage() {
                   )}
 
                   {filteredItems.map(function (row) {
-                    const isClosed = row.status === "Closed";
+                    const isClosed = (row.status || "") === "Closed";
 
                     return (
                       <tr key={row._id} className="border-t">
@@ -504,7 +514,12 @@ export default function MaintenancePage() {
                             onClick={function () {
                               handleMarkDone(row);
                             }}
-                            className="text-green-600 text-xs disabled:opacity-40"
+                            className={
+                              "text-green-600 text-xs " +
+                              (isClosed
+                                ? "opacity-40 cursor-not-allowed"
+                                : "hover:underline")
+                            }
                             disabled={isClosed}
                           >
                             Mark Done
@@ -513,11 +528,13 @@ export default function MaintenancePage() {
                             onClick={function () {
                               openEditForm(row);
                             }}
-                            disabled={isClosed}
                             className={
                               "text-blue-600 text-xs " +
-                              (isClosed ? "opacity-40 cursor-not-allowed" : "")
+                              (isClosed
+                                ? "opacity-40 cursor-not-allowed"
+                                : "hover:underline")
                             }
+                            disabled={isClosed}
                           >
                             Edit
                           </button>
@@ -525,7 +542,7 @@ export default function MaintenancePage() {
                             onClick={function () {
                               handleDeleteClick(row);
                             }}
-                            className="text-red-600 text-xs"
+                            className="text-red-600 text-xs hover:underline"
                           >
                             Delete
                           </button>
@@ -540,7 +557,7 @@ export default function MaintenancePage() {
         )}
       </Card>
 
-      
+    
       {showForm && (
         <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-40">
           <div
@@ -550,7 +567,9 @@ export default function MaintenancePage() {
           >
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-semibold">
-                {formMode === "add" ? "New Maintenance Request" : "Edit Request"}
+                {formMode === "add"
+                  ? "New Maintenance Request"
+                  : "Edit Request"}
               </h3>
               <button
                 onClick={function () {
