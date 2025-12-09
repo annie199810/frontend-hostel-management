@@ -5,6 +5,21 @@ import StatusModal from "../components/StatusModal";
 var API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
 
+function getAuthHeaders(includeJson) {
+  var headers = {};
+  var token = null;
+  try {
+    token = localStorage.getItem("token");
+  } catch (e) {}
+
+  if (includeJson) {
+    headers["Content-Type"] = "application/json";
+  }
+  if (token) {
+    headers["Authorization"] = "Bearer " + token;
+  }
+  return headers;
+}
 
 function StatusBadge(props) {
   var v = props.value || "";
@@ -55,8 +70,6 @@ function ConfirmModal(props) {
   );
 }
 
-
-
 export default function UserManagementPage() {
   var [items, setItems] = useState([]);
   var [loading, setLoading] = useState(true);
@@ -77,12 +90,10 @@ export default function UserManagementPage() {
     status: "Active",
   });
 
-  
   var [statusOpen, setStatusOpen] = useState(false);
   var [statusType, setStatusType] = useState("success");
   var [statusMessage, setStatusMessage] = useState("");
 
-  
   var [deleteOpen, setDeleteOpen] = useState(false);
   var [userToDelete, setUserToDelete] = useState(null);
 
@@ -100,7 +111,21 @@ export default function UserManagementPage() {
     setLoading(true);
     setError("");
 
-    fetch(API_BASE + "/api/users")
+    var token = null;
+    try {
+      token = localStorage.getItem("token");
+    } catch (e) {}
+
+    if (!token) {
+      setError("No token provided");
+      setLoading(false);
+      return;
+    }
+
+    fetch(API_BASE + "/api/users", {
+      method: "GET",
+      headers: getAuthHeaders(false),
+    })
       .then(function (res) {
         return res.json();
       })
@@ -197,7 +222,7 @@ export default function UserManagementPage() {
     if (formMode === "add") {
       fetch(API_BASE + "/api/users", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(true),
         body: JSON.stringify(payload),
       })
         .then(function (res) {
@@ -221,7 +246,7 @@ export default function UserManagementPage() {
     } else {
       fetch(API_BASE + "/api/users/" + formData._id, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(true),
         body: JSON.stringify(payload),
       })
         .then(function (res) {
@@ -258,6 +283,7 @@ export default function UserManagementPage() {
 
     fetch(API_BASE + "/api/users/" + userToDelete._id, {
       method: "DELETE",
+      headers: getAuthHeaders(false),
     })
       .then(function (res) {
         return res.json();
@@ -288,7 +314,6 @@ export default function UserManagementPage() {
 
   return (
     <>
-      
       <StatusModal
         open={statusOpen}
         type={statusType}
@@ -298,7 +323,6 @@ export default function UserManagementPage() {
         }}
       />
 
-      
       <ConfirmModal
         open={deleteOpen}
         message={
@@ -312,7 +336,6 @@ export default function UserManagementPage() {
       />
 
       <main className="p-4 sm:p-6 space-y-6 container-responsive">
-       
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm text-gray-600 mt-1">
@@ -329,7 +352,6 @@ export default function UserManagementPage() {
           </button>
         </div>
 
-       
         <Card>
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <input
@@ -451,7 +473,6 @@ export default function UserManagementPage() {
           )}
         </Card>
 
-       
         {showForm && (
           <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-20">
             <div className="bg-white rounded-lg shadow-lg w-full max-w-xl p-6">
