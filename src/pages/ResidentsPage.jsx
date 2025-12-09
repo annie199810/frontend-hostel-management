@@ -1,20 +1,34 @@
 
+
 import React, { useEffect, useMemo, useState } from "react";
 import Card from "../components/Card";
+import StatusModal from "../components/StatusModal";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
+var API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
+function getAuthHeaders(includeJson) {
+  var headers = {};
+  var token = null;
+  try {
+    token = localStorage.getItem("token");
+  } catch (e) {}
+
+  if (includeJson) {
+    headers["Content-Type"] = "application/json";
+  }
+  if (token) {
+    headers["Authorization"] = "Bearer " + token;
+  }
+  return headers;
+}
 
 function StatusBadge(props) {
-  const raw = props.value || "active";
-  const v = String(raw).toLowerCase();
-
-  const cls =
-    v === "checked-out"
-      ? "bg-gray-100 text-gray-700"
+  var v = (props.value || "").toLowerCase();
+  var label = v === "inactive" ? "Inactive" : "Active";
+  var cls =
+    v === "inactive"
+      ? "bg-gray-100 text-gray-600"
       : "bg-emerald-50 text-emerald-700";
-
-  const label = v === "checked-out" ? "Checked-Out" : "Active";
 
   return (
     <span className={"px-2 py-0.5 rounded-full text-xs font-medium " + cls}>
@@ -23,17 +37,37 @@ function StatusBadge(props) {
   );
 }
 
-
-function AvatarEmoji(props) {
-  var gender = props.gender || "";
-  var g = gender.toLowerCase();
-  var emoji = g === "female" ? "👩" : g === "male" ? "👨" : "🙂";
+function ConfirmModal(props) {
+  if (!props.open) return null;
 
   return (
-    <div className="avatar-circle">
-      <span role="img" aria-label="avatar">
-        {emoji}
-      </span>
+    <div className="fixed inset-0 z-40 flex items-center justify-center px-4 modal-backdrop">
+      <div className="relative z-10 bg-white w-full max-w-sm rounded-2xl shadow-xl p-6 text-center border">
+        <div className="text-red-600 text-5xl mb-3">⚠</div>
+
+        <h2 className="text-xl font-semibold mb-2 text-slate-800">
+          Delete Resident
+        </h2>
+
+        <p className="text-slate-600 mb-5 leading-relaxed">{props.message}</p>
+
+        <div className="flex justify-center gap-3">
+          <button
+            type="button"
+            onClick={props.onCancel}
+            className="px-4 py-2 rounded-lg border text-sm text-slate-700 hover:bg-slate-100"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={props.onConfirm}
+            className="px-4 py-2 rounded-lg text-sm text-white bg-red-600 hover:bg-red-700"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -53,50 +87,63 @@ export default function ResidentsPage() {
     name: "",
     roomNumber: "",
     phone: "",
-    gender: "",
     status: "active",
-    checkIn: "",
   });
 
- 
+  var [statusOpen, setStatusOpen] = useState(false);
+  var [statusType, setStatusType] = useState("success");
+  var [statusMessage, setStatusMessage] = useState("");
+
+  var [deleteOpen, setDeleteOpen] = useState(false);
+  var [residentToDelete, setResidentToDelete] = useState(null);
+
+  function showStatus(type, message) {
+    setStatusType(type);
+    setStatusMessage(message);
+    setStatusOpen(true);
+  }
+
   useEffect(function () {
-    var mounted = true;
-
-    async function load() {
-      try {
-        setLoading(true);
-        setError("");
-
-        var res = await fetch(API_BASE + "/api/residents");
-        var json = await res.json();
-
-        if (!res.ok || (json && json.ok === false)) {
-          if (mounted) {
-            setError(
-              (json && json.error) || "Failed to load residents"
-            );
-          }
-          return;
-        }
-
-        if (mounted) {
-          setItems(json.residents || json.data || []);
-        }
-      } catch (err) {
-        console.error("Residents load error:", err);
-        if (mounted) setError("Failed to load residents");
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    }
-
-    load();
-    return function () {
-      mounted = false;
-    };
+    loadResidents();
   }, []);
 
- 
+  function loadResidents() {
+    setLoading(true);
+    setError("");
+
+    var token = null;
+    try {
+      token = localStorage.getItem("token");
+    } catch (e) {}
+
+    if (!token) {
+      setError("No token provided. Please login again.");
+      setLoading(false);
+      return;
+    }
+
+    fetch(API_BASE + "/api/residents", {
+      method: "GET",
+      headers: getAuthHeaders(false),
+    })
+      .then(function (res) {
+        return res.json();
+      })
+      .then(function (data) {
+        if (data && data.ok) {
+          setItems(data.residents || []);
+        } else {
+          setError(data && data.error ? data.error : "Failed to load residents");
+        }
+      })
+      .catch(function () {
+        setError("Cannot reach server");
+      })
+      .finally(function () {
+        setLoading(false);
+      });
+  }
+
   var filteredItems = useMemo(
     function () {
       var text = (search || "").toLowerCase();
@@ -104,20 +151,14 @@ export default function ResidentsPage() {
       return (items || []).filter(function (r) {
         var matchSearch =
           !text ||
-          (r.name &&
-            r.name.toLowerCase().indexOf(text) !== -1) ||
-          (r.roomNumber &&
-            String(r.roomNumber)
-              .toLowerCase()
-              .indexOf(text) !== -1) ||
-          (r.phone &&
-            String(r.phone)
-              .toLowerCase()
-              .indexOf(text) !== -1);
+          (r.name || "").toLowerCase().indexOf(text) !== -1 ||
+          (r.roomNumber || "").toLowerCase().indexOf(text) !== -1 ||
+          (r.phone || "").toLowerCase().indexOf(text) !== -1;
 
-        var itemStatus = (r.status || "active").toLowerCase();
+        var statusVal = (r.status || "active").toLowerCase();
         var matchStatus =
-          statusFilter === "all" || itemStatus === statusFilter;
+          statusFilter === "all" ||
+          statusVal === statusFilter.toLowerCase();
 
         return matchSearch && matchStatus;
       });
@@ -125,7 +166,6 @@ export default function ResidentsPage() {
     [items, search, statusFilter]
   );
 
-  
   function openAddForm() {
     setFormMode("add");
     setFormData({
@@ -133,9 +173,7 @@ export default function ResidentsPage() {
       name: "",
       roomNumber: "",
       phone: "",
-      gender: "",
       status: "active",
-      checkIn: new Date().toISOString().slice(0, 10),
     });
     setShowForm(true);
   }
@@ -147,9 +185,7 @@ export default function ResidentsPage() {
       name: row.name || "",
       roomNumber: row.roomNumber || "",
       phone: row.phone || "",
-      gender: row.gender || "",
-      status: (row.status || "active").toLowerCase(),
-      checkIn: row.checkIn || "",
+      status: row.status || "active",
     });
     setShowForm(true);
   }
@@ -160,432 +196,370 @@ export default function ResidentsPage() {
     });
   }
 
-  
-  async function handleFormSubmit(e) {
+  function handleFormSubmit(e) {
     e.preventDefault();
 
-    if (!formData.name) {
-      alert("Please enter resident name");
+    if (!formData.name || !formData.roomNumber || !formData.phone) {
+      showStatus("error", "Please enter name, room number and phone.");
       return;
     }
 
-    try {
-      if (formMode === "add") {
-        var resAdd = await fetch(API_BASE + "/api/residents", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: formData.name,
-            roomNumber: formData.roomNumber,
-            phone: formData.phone,
-            gender: formData.gender,
-            status: formData.status,
-            checkIn: formData.checkIn,
-          }),
-        });
-        var jsonAdd = await resAdd.json();
+    var payload = {
+      name: formData.name,
+      roomNumber: formData.roomNumber,
+      phone: formData.phone,
+      status: formData.status || "active",
+    };
 
-        if (!resAdd.ok || (jsonAdd && jsonAdd.ok === false)) {
-          alert(
-            (jsonAdd && jsonAdd.error) ||
-              "Failed to create resident"
-          );
-          return;
-        }
-
-        setItems(function (prev) {
-          return prev.concat(
-            jsonAdd.resident || jsonAdd.data || jsonAdd
-          );
-        });
-      } else {
-        var id = formData._id;
-
-        var resEdit = await fetch(
-          API_BASE + "/api/residents/" + id,
-          {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              name: formData.name,
-              roomNumber: formData.roomNumber,
-              phone: formData.phone,
-              gender: formData.gender,
-              status: formData.status,
-              checkIn: formData.checkIn,
-            }),
+    if (formMode === "add") {
+      fetch(API_BASE + "/api/residents", {
+        method: "POST",
+        headers: getAuthHeaders(true),
+        body: JSON.stringify(payload),
+      })
+        .then(function (res) {
+          return res.json();
+        })
+        .then(function (data) {
+          if (data && data.ok) {
+            setShowForm(false);
+            loadResidents();
+            showStatus("success", "Resident created successfully.");
+          } else {
+            showStatus(
+              "error",
+              data && data.error ? data.error : "Failed to create resident."
+            );
           }
-        );
-        var jsonEdit = await resEdit.json();
+        })
+        .catch(function () {
+          showStatus("error", "Server error while creating resident.");
+        });
+    } else {
+      fetch(API_BASE + "/api/residents/" + formData._id, {
+        method: "PUT",
+        headers: getAuthHeaders(true),
+        body: JSON.stringify(payload),
+      })
+        .then(function (res) {
+          return res.json();
+        })
+        .then(function (data) {
+          if (data && data.ok) {
+            setShowForm(false);
+            loadResidents();
+            showStatus("success", "Resident updated successfully.");
+          } else {
+            showStatus(
+              "error",
+              data && data.error ? data.error : "Failed to update resident."
+            );
+          }
+        })
+        .catch(function () {
+          showStatus("error", "Server error while updating resident.");
+        });
+    }
+  }
 
-        if (!resEdit.ok || (jsonEdit && jsonEdit.ok === false)) {
-          alert(
-            (jsonEdit && jsonEdit.error) ||
-              "Failed to update resident"
-          );
-          return;
-        }
+  function handleDelete(row) {
+    setResidentToDelete(row);
+    setDeleteOpen(true);
+  }
 
-        setItems(function (prev) {
-          return prev.map(function (r) {
-            return r._id === id
-              ? jsonEdit.resident || jsonEdit.data || jsonEdit
-              : r;
+  function handleConfirmDelete() {
+    if (!residentToDelete) {
+      setDeleteOpen(false);
+      return;
+    }
+
+    fetch(API_BASE + "/api/residents/" + residentToDelete._id, {
+      method: "DELETE",
+      headers: getAuthHeaders(false),
+    })
+      .then(function (res) {
+        return res.json();
+      })
+      .then(function (data) {
+        if (data && data.ok) {
+          setItems(function (prev) {
+            return prev.filter(function (r) {
+              return r._id !== residentToDelete._id;
+            });
           });
-        });
-      }
-
-      setShowForm(false);
-    } catch (err) {
-      console.error("Save resident error:", err);
-      alert("Failed to save resident");
-    }
-  }
-
- 
-  async function handleDelete(row) {
-    if (!window.confirm("Delete resident " + row.name + "?")) return;
-
-    try {
-      var res = await fetch(
-        API_BASE + "/api/residents/" + row._id,
-        { method: "DELETE" }
-      );
-      var json = await res.json();
-
-      if (!res.ok || (json && json.ok === false)) {
-        alert(
-          (json && json.error) || "Failed to delete resident"
-        );
-        return;
-      }
-
-      setItems(function (prev) {
-        return prev.filter(function (r) {
-          return r._id !== row._id;
-        });
+          showStatus("success", "Resident deleted successfully.");
+        } else {
+          showStatus(
+            "error",
+            data && data.error ? data.error : "Failed to delete resident."
+          );
+        }
+      })
+      .catch(function () {
+        showStatus("error", "Server error while deleting resident.");
+      })
+      .finally(function () {
+        setDeleteOpen(false);
+        setResidentToDelete(null);
       });
-    } catch (err) {
-      console.error("Delete error:", err);
-      alert("Failed to delete resident");
-    }
   }
 
-  
   return (
-    <main className="p-4 sm:p-6 space-y-6">
-      
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <p className="text-sm text-gray-600 mt-1">
-            Manage current hostel residents and their room
-            assignments.
-          </p>
-        </div>
+    <>
+      <StatusModal
+        open={statusOpen}
+        type={statusType}
+        message={statusMessage}
+        onClose={function () {
+          setStatusOpen(false);
+        }}
+      />
 
-        <button
-          onClick={openAddForm}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700 text-sm"
-        >
-          + Add New Resident
-        </button>
-      </div>
+      <ConfirmModal
+        open={deleteOpen}
+        message={
+          residentToDelete ? 'Delete resident "' + residentToDelete.name + '"?' : ""
+        }
+        onCancel={function () {
+          setDeleteOpen(false);
+          setResidentToDelete(null);
+        }}
+        onConfirm={handleConfirmDelete}
+      />
 
-      <Card>
-        
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <input
-            type="text"
-            placeholder="Search by name, room or phone..."
-            className="border px-3 py-2 rounded text-sm flex-1 min-w-[220px]"
-            value={search}
-            onChange={function (e) {
-              setSearch(e.target.value);
-            }}
-          />
+      <main className="p-4 sm:p-6 space-y-6 container-responsive">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm text-gray-600 mt-1">
+              Manage hostel residents, room assignment and status.
+            </p>
+          </div>
 
-          <select
-            className="border px-3 py-2 rounded text-sm"
-            value={statusFilter}
-            onChange={function (e) {
-              setStatusFilter(e.target.value);
-            }}
+          <button
+            onClick={openAddForm}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700 text-sm"
           >
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="checked-out">Checked-Out</option>
-          </select>
+            + Add Resident
+          </button>
         </div>
 
-        {loading && (
-          <div className="px-3 py-4 text-sm text-gray-500">
-            Loading…
+        <Card>
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <input
+              type="text"
+              placeholder="Search by name, room or phone..."
+              className="border px-3 py-2 rounded text-sm flex-1 min-w-[220px]"
+              value={search}
+              onChange={function (e) {
+                setSearch(e.target.value);
+              }}
+            />
+
+            <div className="flex gap-3 flex-wrap">
+              <select
+                className="border px-3 py-2 rounded text-sm"
+                value={statusFilter}
+                onChange={function (e) {
+                  setStatusFilter(e.target.value);
+                }}
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
           </div>
-        )}
 
-        {!loading && error && (
-          <div className="px-3 py-4 text-sm text-red-600">
-            {error}
-          </div>
-        )}
+          {loading && (
+            <div className="px-3 py-6 text-sm text-gray-500">
+              Loading residents…
+            </div>
+          )}
 
-        {!loading && !error && (
-          <div className="overflow-x-auto w-full">
-            <table className="min-w-full text-sm border-t border-gray-200 table-auto">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="text-left px-3 py-2 font-semibold">
-                    Name
-                  </th>
-                  <th className="text-left px-3 py-2 font-semibold">
-                    Room
-                  </th>
-                  <th className="text-left px-3 py-2 font-semibold">
-                    Phone
-                  </th>
-                  <th className="text-left px-3 py-2 font-semibold">
-                    Status
-                  </th>
-                  <th className="text-left px-3 py-2 font-semibold">
-                    Check-in
-                  </th>
-                  <th className="text-right px-3 py-2 font-semibold">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
+          {!loading && error && (
+            <div className="px-3 py-4 text-sm text-red-600">{error}</div>
+          )}
 
-              <tbody>
-                {filteredItems.length === 0 && (
+          {!loading && !error && (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm border-t border-gray-200">
+                <thead className="bg-gray-50">
                   <tr>
-                    <td
-                      colSpan="6"
-                      className="px-3 py-4 text-center text-gray-500"
-                    >
-                      No residents found.
-                    </td>
+                    <th className="text-left px-3 py-2 font-semibold">Name</th>
+                    <th className="text-left px-3 py-2 font-semibold">
+                      Room No
+                    </th>
+                    <th className="text-left px-3 py-2 font-semibold">
+                      Phone
+                    </th>
+                    <th className="text-left px-3 py-2 font-semibold">
+                      Status
+                    </th>
+                    <th className="text-left px-3 py-2 font-semibold">
+                      Check-in
+                    </th>
+                    <th className="text-right px-3 py-2 font-semibold">
+                      Actions
+                    </th>
                   </tr>
-                )}
-
-                {filteredItems.map(function (row) {
-                  var genderLabel = row.gender
-                    ? row.gender.charAt(0).toUpperCase() +
-                      row.gender.slice(1)
-                    : "—";
-
-                  return (
-                    <tr key={row._id} className="border-t">
-                      <td className="px-3 py-3">
-                        <div className="flex items-center gap-3">
-                          <AvatarEmoji
-                            gender={row.gender}
-                            name={row.name}
-                          />
-                          <div>
-                            <div className="text-sm font-medium">
-                              {row.name}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {genderLabel}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td className="px-3 py-3">
-                        {row.roomNumber || "—"}
-                      </td>
-
-                      <td className="px-3 py-3">
-                        {row.phone && row.phone !== ""
-                          ? row.phone
-                          : "—"}
-                      </td>
-
-                      <td className="px-3 py-3">
-                        <StatusBadge value={row.status} />
-                      </td>
-
-                      <td className="px-3 py-3 text-gray-600">
-                        {row.checkIn || "—"}
-                      </td>
-
-                      <td className="px-3 py-3 text-right space-x-2">
-                        <button
-                          onClick={function () {
-                            openEditForm(row);
-                          }}
-                          className="text-blue-600 hover:underline text-xs"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={function () {
-                            handleDelete(row);
-                          }}
-                          className="text-red-600 hover:underline text-xs"
-                        >
-                          Delete
-                        </button>
+                </thead>
+                <tbody>
+                  {filteredItems.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan="6"
+                        className="px-3 py-4 text-center text-gray-500"
+                      >
+                        No residents found.
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
+                  )}
 
-    
-      {showForm && (
-        <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-30">
-          <div className="bg-white rounded-lg shadow-lg w-full max-w-xl p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-semibold">
-                {formMode === "add"
-                  ? "New Resident"
-                  : "Edit Resident"}
-              </h3>
-              <button
-                onClick={function () {
-                  setShowForm(false);
-                }}
-                className="text-gray-500 hover:text-gray-700 text-lg"
-              >
-                ×
-              </button>
+                  {filteredItems.map(function (row) {
+                    return (
+                      <tr key={row._id} className="border-t">
+                        <td className="px-3 py-2">{row.name}</td>
+                        <td className="px-3 py-2">{row.roomNumber}</td>
+                        <td className="px-3 py-2">{row.phone}</td>
+                        <td className="px-3 py-2">
+                          <StatusBadge value={row.status} />
+                        </td>
+                        <td className="px-3 py-2 text-gray-600">
+                          {row.checkIn
+                            ? row.checkIn
+                            : row.createdAt
+                            ? new Date(row.createdAt).toLocaleDateString()
+                            : "—"}
+                        </td>
+                        <td className="px-3 py-2 text-right space-x-2">
+                          <button
+                            onClick={function () {
+                              openEditForm(row);
+                            }}
+                            className="text-blue-600 hover:underline text-xs"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={function () {
+                              handleDelete(row);
+                            }}
+                            className="text-red-600 hover:underline text-xs"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
+          )}
+        </Card>
 
-            <form
-              onSubmit={handleFormSubmit}
-              className="space-y-4"
-            >
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Name
-                  </label>
-                  <input
-                    type="text"
-                    className="border px-3 py-2 rounded w-full text-sm"
-                    value={formData.name}
-                    onChange={function (e) {
-                      handleFormChange("name", e.target.value);
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Room
-                  </label>
-                  <input
-                    type="text"
-                    className="border px-3 py-2 rounded w-full text-sm"
-                    value={formData.roomNumber}
-                    onChange={function (e) {
-                      handleFormChange(
-                        "roomNumber",
-                        e.target.value
-                      );
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Phone
-                  </label>
-                  <input
-                    type="text"
-                    className="border px-3 py-2 rounded w-full text-sm"
-                    value={formData.phone}
-                    onChange={function (e) {
-                      handleFormChange("phone", e.target.value);
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Gender
-                  </label>
-                  <select
-                    className="border px-3 py-2 rounded w-full text-sm"
-                    value={formData.gender}
-                    onChange={function (e) {
-                      handleFormChange("gender", e.target.value);
-                    }}
-                  >
-                    <option value="">
-                      Prefer not to say
-                    </option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Status
-                  </label>
-                  <select
-                    className="border px-3 py-2 rounded w-full text-sm"
-                    value={formData.status}
-                    onChange={function (e) {
-                      handleFormChange("status", e.target.value);
-                    }}
-                  >
-                    <option value="active">Active</option>
-                    <option value="checked-out">
-                      Checked-Out
-                    </option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Check-in
-                  </label>
-                  <input
-                    type="date"
-                    className="border px-3 py-2 rounded w-full text-sm"
-                    value={formData.checkIn}
-                    onChange={function (e) {
-                      handleFormChange("checkIn", e.target.value);
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2">
+        {showForm && (
+          <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-20">
+            <div className="bg-white rounded-lg shadow-lg w-full max-w-xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-semibold">
+                  {formMode === "add" ? "Add Resident" : "Edit Resident"}
+                </h3>
                 <button
-                  type="button"
                   onClick={function () {
                     setShowForm(false);
                   }}
-                  className="px-4 py-2 border rounded text-sm"
+                  className="text-gray-500 hover:text-gray-700 text-lg"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded text-sm"
-                >
-                  {formMode === "add"
-                    ? "Create"
-                    : "Save Changes"}
+                  ×
                 </button>
               </div>
-            </form>
+
+              <form onSubmit={handleFormSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Name
+                    </label>
+                    <input
+                      type="text"
+                      className="border px-3 py-2 rounded w-full text-sm"
+                      value={formData.name}
+                      onChange={function (e) {
+                        handleFormChange("name", e.target.value);
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Room Number
+                    </label>
+                    <input
+                      type="text"
+                      className="border px-3 py-2 rounded w-full text-sm"
+                      value={formData.roomNumber}
+                      onChange={function (e) {
+                        handleFormChange("roomNumber", e.target.value);
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Phone
+                    </label>
+                    <input
+                      type="text"
+                      className="border px-3 py-2 rounded w-full text-sm"
+                      value={formData.phone}
+                      onChange={function (e) {
+                        handleFormChange("phone", e.target.value);
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Status
+                    </label>
+                    <select
+                      className="border px-3 py-2 rounded w-full text-sm"
+                      value={formData.status}
+                      onChange={function (e) {
+                        handleFormChange("status", e.target.value);
+                      }}
+                    >
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={function () {
+                      setShowForm(false);
+                    }}
+                    className="px-4 py-2 border rounded text-sm"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-600 text-white rounded text-sm"
+                  >
+                    {formMode === "add" ? "Create Resident" : "Save Changes"}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
-    </main>
+        )}
+      </main>
+    </>
   );
 }

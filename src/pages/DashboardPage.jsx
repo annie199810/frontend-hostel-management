@@ -4,7 +4,24 @@ import Card from "../components/Card";
 import StatusModal from "../components/StatusModal";
 import { useAuth } from "../auth/AuthProvider";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL; 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
+
+
+function getAuthHeaders(includeJson) {
+  var headers = {};
+  var token = null;
+  try {
+    token = localStorage.getItem("token");
+  } catch (e) {}
+
+  if (includeJson) {
+    headers["Content-Type"] = "application/json";
+  }
+  if (token) {
+    headers["Authorization"] = "Bearer " + token;
+  }
+  return headers;
+}
 
 function formatCurrency(amount) {
   if (!amount) return "₹0";
@@ -17,7 +34,6 @@ export default function DashboardPage() {
   const location = useLocation();
   const navigate = useNavigate();
 
- 
   const initialWelcome =
     (location.state && location.state.justLoggedIn) || false;
 
@@ -37,7 +53,6 @@ export default function DashboardPage() {
       ? "Welcome, " + user.name + "! You are now signed in."
       : "Welcome to the dashboard!";
 
- 
   const [rooms, setRooms] = useState([]);
   const [residents, setResidents] = useState([]);
   const [bills, setBills] = useState([]);
@@ -53,8 +68,16 @@ export default function DashboardPage() {
     setError("");
 
     Promise.all([
+     
       fetch(API_BASE + "/api/rooms").then((r) => r.json()),
-      fetch(API_BASE + "/api/residents").then((r) => r.json()),
+
+    
+      fetch(API_BASE + "/api/residents", {
+        method: "GET",
+        headers: getAuthHeaders(false),
+      }).then((r) => r.json()),
+
+      
       fetch(API_BASE + "/api/billing").then((r) => r.json()),
     ])
       .then((results) => {
@@ -79,7 +102,6 @@ export default function DashboardPage() {
       });
   }
 
-  
   const totalRooms = rooms.length;
 
   const occupiedRooms = useMemo(
@@ -132,7 +154,6 @@ export default function DashboardPage() {
     return copy.slice(0, 5);
   }, [residents]);
 
-  
   const donutSize = 220;
   const stroke = 22;
   const radius = (donutSize - stroke) / 2;
@@ -158,7 +179,6 @@ export default function DashboardPage() {
 
   return (
     <main className="p-4 sm:p-6 space-y-6">
-      
       <StatusModal
         open={welcomeOpen}
         type="success"
@@ -168,23 +188,18 @@ export default function DashboardPage() {
         }}
       />
 
-      
-      <div>      
+      <div>
         <p className="text-sm text-slate-600 mt-1">
           Here’s an overview of your hostel today.
         </p>
       </div>
 
       {loading && (
-        <div className="text-sm text-gray-500">
-          Loading dashboard data…
-        </div>
+        <div className="text-sm text-gray-500">Loading dashboard data…</div>
       )}
-      {error && (
-        <div className="text-sm text-red-600 mb-2">{error}</div>
-      )}
+      {error && <div className="text-sm text-red-600 mb-2">{error}</div>}
 
-   
+     
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <div className="flex items-center gap-3">
@@ -263,9 +278,9 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-     
+      
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-       
+     
         <Card>
           <div className="flex items-center justify-between">
             <div className="font-semibold mb-2 text-sm flex items-center gap-2">
@@ -300,9 +315,7 @@ export default function DashboardPage() {
                         {icon}
                       </div>
                       <div>
-                        <div className="text-sm font-medium">
-                          {r.name}
-                        </div>
+                        <div className="text-sm font-medium">{r.name}</div>
                         <div className="text-xs text-gray-500">
                           Room {r.roomNumber || "—"} •{" "}
                           {(r.status || "").charAt(0).toUpperCase() +
@@ -339,7 +352,6 @@ export default function DashboardPage() {
                     donutSize / 2
                   })`}
                 >
-                 
                   <circle
                     r={radius}
                     fill="none"
@@ -347,7 +359,6 @@ export default function DashboardPage() {
                     strokeWidth={stroke}
                   />
 
-                 
                   {segOccupied > 0 && (
                     <circle
                       r={radius}
@@ -363,7 +374,6 @@ export default function DashboardPage() {
                     />
                   )}
 
-                 
                   {segAvailable > 0 && (
                     <circle
                       r={radius}
@@ -379,7 +389,6 @@ export default function DashboardPage() {
                     />
                   )}
 
-                
                   {segMaintenance > 0 && (
                     <circle
                       r={radius}
