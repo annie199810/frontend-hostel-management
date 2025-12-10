@@ -2,87 +2,81 @@ import React, { useEffect, useMemo, useState } from "react";
 import Card from "../components/Card";
 import StatusModal from "../components/StatusModal";
 
-var API_BASE = import.meta.env.VITE_API_BASE_URL || "";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
 
-function getAuthHeaders(includeJson) {
-  var headers = {};
-  var token = null;
+
+function getAuthToken() {
   try {
-    token = localStorage.getItem("token");
-  } catch (e) {}
-
-  if (includeJson) {
-    headers["Content-Type"] = "application/json";
+    return (
+      localStorage.getItem("authToken") ||
+      localStorage.getItem("token") ||
+      ""
+    );
+  } catch (e) {
+    return "";
   }
-  if (token) {
-    headers["Authorization"] = "Bearer " + token;
-  }
-  return headers;
 }
 
-function StatusBadge(props) {
-  var v = props.value || "";
-  var cls =
-    v === "Active"
-      ? "bg-emerald-50 text-emerald-700"
-      : "bg-gray-100 text-gray-600";
+function withAuth(headers) {
+  const t = getAuthToken();
+  if (!t) return headers || {};
+  return Object.assign({}, headers || {}, {
+    Authorization: "Bearer " + t,
+  });
+}
 
+function formatDate(iso) {
+  if (!iso) return "-";
+  try {
+    return new Date(iso).toLocaleDateString();
+  } catch (e) {
+    return iso;
+  }
+}
+
+function StatusPill(props) {
+  const status = (props.status || "").toLowerCase();
+  const base =
+    "inline-flex items-center px-2 py-1 rounded-full text-[11px] font-semibold";
+
+  if (status === "active") {
+    return (
+      <span className={base + " bg-emerald-50 text-emerald-700"}>
+        ● Active
+      </span>
+    );
+  }
+  if (status === "suspended") {
+    return (
+      <span className={base + " bg-amber-50 text-amber-700"}>
+        ● Suspended
+      </span>
+    );
+  }
   return (
-    <span className={"px-2 py-0.5 rounded-full text-xs font-medium " + cls}>
-      {v || "-"}
+    <span className={base + " bg-slate-100 text-slate-500"}>
+      ● Inactive
     </span>
   );
 }
 
-function ConfirmModal(props) {
-  if (!props.open) return null;
 
-  return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center px-4 modal-backdrop">
-      <div className="relative z-10 bg-white w-full max-w-sm rounded-2xl shadow-xl p-6 text-center border">
-        <div className="text-red-600 text-5xl mb-3">⚠</div>
-
-        <h2 className="text-xl font-semibold mb-2 text-slate-800">
-          Delete User
-        </h2>
-
-        <p className="text-slate-600 mb-5 leading-relaxed">{props.message}</p>
-
-        <div className="flex justify-center gap-3">
-          <button
-            type="button"
-            onClick={props.onCancel}
-            className="px-4 py-2 rounded-lg border text-sm text-slate-700 hover:bg-slate-100"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={props.onConfirm}
-            className="px-4 py-2 rounded-lg text-sm text-white bg-red-600 hover:bg-red-700"
-          >
-            Delete
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function UserManagementPage() {
-  var [items, setItems] = useState([]);
-  var [loading, setLoading] = useState(true);
-  var [error, setError] = useState("");
+  const [users, setUsers] = useState([]);
 
-  var [search, setSearch] = useState("");
-  var [roleFilter, setRoleFilter] = useState("all");
-  var [statusFilter, setStatusFilter] = useState("all");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  var [showForm, setShowForm] = useState(false);
-  var [formMode, setFormMode] = useState("add");
-  var [formData, setFormData] = useState({
-    _id: null,
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  const [showAdd, setShowAdd] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+
+  const [addForm, setAddForm] = useState({
     name: "",
     email: "",
     password: "",
@@ -90,512 +84,838 @@ export default function UserManagementPage() {
     status: "Active",
   });
 
-  var [statusOpen, setStatusOpen] = useState(false);
-  var [statusType, setStatusType] = useState("success");
-  var [statusMessage, setStatusMessage] = useState("");
+  const [editForm, setEditForm] = useState({
+    _id: "",
+    name: "",
+    email: "",
+    role: "Staff",
+    status: "Active",
+  });
 
-  var [deleteOpen, setDeleteOpen] = useState(false);
-  var [userToDelete, setUserToDelete] = useState(null);
+  
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalType, setModalType] = useState("success");
+  const [modalMessage, setModalMessage] = useState("");
 
-  function showStatus(type, message) {
-    setStatusType(type);
-    setStatusMessage(message);
-    setStatusOpen(true);
+  function showSuccess(msg) {
+    setModalType("success");
+    setModalMessage(msg);
+    setModalOpen(true);
   }
+
+  function showError(msg) {
+    setModalType("error");
+    setModalMessage(
+      msg || "Something went wrong. Please try again in a moment."
+    );
+    setModalOpen(true);
+  }
+
+
 
   useEffect(function () {
-    loadUsers();
-  }, []);
+    let mounted = true;
 
-  function loadUsers() {
-    setLoading(true);
-    setError("");
+    async function loadUsers() {
+      setLoading(true);
+      setError("");
 
-    var token = null;
-    try {
-      token = localStorage.getItem("token");
-    } catch (e) {}
+      try {
+        const res = await fetch(API_BASE + "/api/users", {
+          headers: withAuth(),
+        });
 
-    if (!token) {
-      setError("No token provided");
-      setLoading(false);
-      return;
-    }
-
-    fetch(API_BASE + "/api/users", {
-      method: "GET",
-      headers: getAuthHeaders(false),
-    })
-      .then(function (res) {
-        return res.json();
-      })
-      .then(function (data) {
-        if (data && data.ok) {
-          setItems(data.users || []);
-        } else {
-          setError(data && data.error ? data.error : "Failed to load users");
+        if (!res.ok) {
+          throw new Error("GET /api/users -> " + res.status);
         }
-      })
-      .catch(function () {
-        setError("Cannot reach server");
-      })
-      .finally(function () {
-        setLoading(false);
-      });
-  }
 
-  var filteredItems = useMemo(
-    function () {
-      var text = (search || "").toLowerCase();
+        const data = await res.json();
+        const list = Array.isArray(data)
+          ? data
+          : Array.isArray(data.users)
+          ? data.users
+          : [];
 
-      return (items || []).filter(function (u) {
-        var matchSearch =
-          !text ||
-          (u.name || "").toLowerCase().indexOf(text) !== -1 ||
-          (u.email || "").toLowerCase().indexOf(text) !== -1;
-
-        var matchRole = roleFilter === "all" || u.role === roleFilter;
-        var matchStatus = statusFilter === "all" || u.status === statusFilter;
-
-        return matchSearch && matchRole && matchStatus;
-      });
-    },
-    [items, search, roleFilter, statusFilter]
-  );
-
-  function openAddForm() {
-    setFormMode("add");
-    setFormData({
-      _id: null,
-      name: "",
-      email: "",
-      password: "",
-      role: "Staff",
-      status: "Active",
-    });
-    setShowForm(true);
-  }
-
-  function openEditForm(row) {
-    setFormMode("edit");
-    setFormData({
-      _id: row._id,
-      name: row.name || "",
-      email: row.email || "",
-      password: "",
-      role: row.role || "Staff",
-      status: row.status || "Active",
-    });
-    setShowForm(true);
-  }
-
-  function handleFormChange(field, value) {
-    setFormData(function (prev) {
-      return Object.assign({}, prev, { [field]: value });
-    });
-  }
-
-  function handleFormSubmit(e) {
-    e.preventDefault();
-
-    if (!formData.name || !formData.email) {
-      showStatus("error", "Please enter name and email.");
-      return;
-    }
-
-    if (formMode === "add" && !formData.password) {
-      showStatus("error", "Password is required for new user.");
-      return;
-    }
-
-    var payload = {
-      name: formData.name,
-      email: formData.email,
-      role: formData.role,
-      status: formData.status,
-    };
-
-    if (formData.password) {
-      payload.password = formData.password;
-    }
-
-    if (formMode === "add") {
-      fetch(API_BASE + "/api/users", {
-        method: "POST",
-        headers: getAuthHeaders(true),
-        body: JSON.stringify(payload),
-      })
-        .then(function (res) {
-          return res.json();
-        })
-        .then(function (data) {
-          if (data && data.ok) {
-            setShowForm(false);
-            loadUsers();
-            showStatus("success", "User created successfully.");
-          } else {
-            showStatus(
-              "error",
-              data && data.error ? data.error : "Failed to create user."
-            );
-          }
-        })
-        .catch(function () {
-          showStatus("error", "Server error while creating user.");
-        });
-    } else {
-      fetch(API_BASE + "/api/users/" + formData._id, {
-        method: "PUT",
-        headers: getAuthHeaders(true),
-        body: JSON.stringify(payload),
-      })
-        .then(function (res) {
-          return res.json();
-        })
-        .then(function (data) {
-          if (data && data.ok) {
-            setShowForm(false);
-            loadUsers();
-            showStatus("success", "User updated successfully.");
-          } else {
-            showStatus(
-              "error",
-              data && data.error ? data.error : "Failed to update user."
-            );
-          }
-        })
-        .catch(function () {
-          showStatus("error", "Server error while updating user.");
-        });
-    }
-  }
-
-  function handleDelete(row) {
-    setUserToDelete(row);
-    setDeleteOpen(true);
-  }
-
-  function handleConfirmDelete() {
-    if (!userToDelete) {
-      setDeleteOpen(false);
-      return;
-    }
-
-    fetch(API_BASE + "/api/users/" + userToDelete._id, {
-      method: "DELETE",
-      headers: getAuthHeaders(false),
-    })
-      .then(function (res) {
-        return res.json();
-      })
-      .then(function (data) {
-        if (data && data.ok) {
-          setItems(function (prev) {
-            return prev.filter(function (u) {
-              return u._id !== userToDelete._id;
-            });
-          });
-          showStatus("success", "User deleted successfully.");
-        } else {
-          showStatus(
-            "error",
-            data && data.error ? data.error : "Failed to delete user."
+        if (mounted) setUsers(list);
+      } catch (err) {
+        console.error("loadUsers error", err);
+        if (mounted) {
+          setError(
+            "Unable to load users at the moment. Please try again shortly."
           );
         }
-      })
-      .catch(function () {
-        showStatus("error", "Server error while deleting user.");
-      })
-      .finally(function () {
-        setDeleteOpen(false);
-        setUserToDelete(null);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+
+    loadUsers();
+    return function () {
+      mounted = false;
+    };
+  }, []);
+
+
+
+  const stats = useMemo(
+    function () {
+      var total = users.length;
+      var admins = 0;
+      var staff = 0;
+      var active = 0;
+
+      (Array.isArray(users) ? users : []).forEach(function (u) {
+        var role = (u.role || "").toLowerCase();
+        var status = (u.status || "").toLowerCase();
+
+        if (role === "admin") admins += 1;
+        else staff += 1;
+
+        if (status === "active") active += 1;
       });
+
+      return { total: total, admins: admins, staff: staff, active: active };
+    },
+    [users]
+  );
+
+  
+
+  const filtered = useMemo(
+    function () {
+      const q = (search || "").toLowerCase();
+
+      return (Array.isArray(users) ? users : []).filter(function (u) {
+        const matchText =
+          !q ||
+          (u.name || "").toLowerCase().indexOf(q) !== -1 ||
+          (u.email || "").toLowerCase().indexOf(q) !== -1;
+
+        const matchRole =
+          roleFilter === "all" ||
+          (u.role || "").toLowerCase() === roleFilter.toLowerCase();
+
+        const matchStatus =
+          statusFilter === "all" ||
+          (u.status || "").toLowerCase() === statusFilter.toLowerCase();
+
+        return matchText && matchRole && matchStatus;
+      });
+    },
+    [users, search, roleFilter, statusFilter]
+  );
+
+ 
+
+  async function submitAdd(e) {
+    e.preventDefault();
+
+    if (!addForm.name || !addForm.email || !addForm.password) {
+      showError("Please fill in name, email and password.");
+      return;
+    }
+
+    const payload = {
+      name: addForm.name,
+      email: addForm.email,
+      password: addForm.password,
+      role: addForm.role || "Staff",
+      status: addForm.status || "Active",
+    };
+
+    try {
+      const res = await fetch(API_BASE + "/api/users", {
+        method: "POST",
+        headers: withAuth({ "Content-Type": "application/json" }),
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(function () {
+        return {};
+      });
+
+      if (!res.ok || data.ok === false) {
+        console.error("submitAdd user err:", data);
+        showError(
+          data && data.error
+            ? data.error
+            : "Unable to create user. Please try again."
+        );
+        return;
+      }
+
+      const saved = data.user || data.created || payload;
+
+      setUsers(function (prev) {
+        return [saved].concat(prev);
+      });
+
+      setShowAdd(false);
+      setAddForm({
+        name: "",
+        email: "",
+        password: "",
+        role: "Staff",
+        status: "Active",
+      });
+
+      showSuccess("User account has been created successfully.");
+    } catch (err) {
+      console.error("submitAdd user network err", err);
+      showError("Network error while creating user. Please try again.");
+    }
+  }
+
+  /* ---------- edit user ---------- */
+
+  function openEdit(u) {
+    setEditForm({
+      _id: u._id,
+      name: u.name || "",
+      email: u.email || "",
+      role: u.role || "Staff",
+      status: u.status || "Active",
+    });
+    setShowEdit(true);
+  }
+
+  async function submitEdit(e) {
+    e.preventDefault();
+
+    if (!editForm._id) {
+      showError("User reference is missing.");
+      return;
+    }
+    if (!editForm.name || !editForm.email) {
+      showError("Please fill in name and email.");
+      return;
+    }
+
+    const payload = {
+      name: editForm.name,
+      email: editForm.email,
+      role: editForm.role,
+      status: editForm.status,
+    };
+
+    try {
+      const res = await fetch(API_BASE + "/api/users/" + editForm._id, {
+        method: "PUT",
+        headers: withAuth({ "Content-Type": "application/json" }),
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(function () {
+        return {};
+      });
+
+      if (!res.ok || data.ok === false) {
+        console.error("submitEdit user err:", data);
+        showError(
+          data && data.error
+            ? data.error
+            : "Unable to update this user. Please try again."
+        );
+        return;
+      }
+
+      const updated = data.user || data.updated || payload;
+
+      setUsers(function (prev) {
+        return prev.map(function (u) {
+          if (u._id !== editForm._id) return u;
+          return Object.assign({}, u, updated);
+        });
+      });
+
+      setShowEdit(false);
+      showSuccess("User details have been updated.");
+    } catch (err) {
+      console.error("submitEdit user network err", err);
+      showError("Network error while updating user. Please try again.");
+    }
+  }
+
+ 
+
+  async function toggleStatus(u) {
+    if (!u || !u._id) return;
+
+    
+    const isAdmin = (u.role || "").toLowerCase() === "admin";
+    if (isAdmin) {
+      showError("Admin accounts cannot be deactivated from here.");
+      return;
+    }
+
+    const nextStatus =
+      (u.status || "").toLowerCase() === "active" ? "Inactive" : "Active";
+
+    try {
+      const res = await fetch(API_BASE + "/api/users/" + u._id, {
+        method: "PUT",
+        headers: withAuth({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ status: nextStatus }),
+      });
+
+      const data = await res.json().catch(function () {
+        return {};
+      });
+
+      if (!res.ok || data.ok === false) {
+        console.error("toggleStatus err:", data);
+        showError(
+          data && data.error
+            ? data.error
+            : "Unable to update user status. Please try again."
+        );
+        return;
+      }
+
+      setUsers(function (prev) {
+        return prev.map(function (x) {
+          if (x._id !== u._id) return x;
+          return Object.assign({}, x, { status: nextStatus });
+        });
+      });
+
+      showSuccess(
+        "User has been " +
+          (nextStatus === "Active" ? "re-activated." : "deactivated.")
+      );
+    } catch (err) {
+      console.error("toggleStatus network err", err);
+      showError("Network error while updating status. Please try again.");
+    }
+  }
+
+  /* ---------- delete user ---------- */
+
+  async function handleDelete(u) {
+    if (!u || !u._id) return;
+
+    const isAdmin = (u.role || "").toLowerCase() === "admin";
+    if (isAdmin) {
+      showError("Admin accounts cannot be deleted.");
+      return;
+    }
+
+    const ok = window.confirm(
+      "Are you sure you want to delete the account for " +
+        (u.name || u.email || "this user") +
+        "?\n\nThis action cannot be undone."
+    );
+    if (!ok) return;
+
+    try {
+      const res = await fetch(API_BASE + "/api/users/" + u._id, {
+        method: "DELETE",
+        headers: withAuth(),
+      });
+
+      const data = await res.json().catch(function () {
+        return {};
+      });
+
+      if (!res.ok || data.ok === false) {
+        console.error("delete user err:", data);
+        showError(
+          data && data.error
+            ? data.error
+            : "Unable to delete this user. Please try again."
+        );
+        return;
+      }
+
+      setUsers(function (prev) {
+        return prev.filter(function (x) {
+          return x._id !== u._id;
+        });
+      });
+
+      showSuccess("User account has been deleted.");
+    } catch (err) {
+      console.error("delete user network err", err);
+      showError("Network error while deleting user. Please try again.");
+    }
+  }
+
+  
+
+  if (loading) {
+    return (
+      <main className="p-4 sm:p-6">
+        <p className="text-sm text-gray-500">Loading users…</p>
+      </main>
+    );
+  }
+
+  if (error) {
+    return (
+      <main className="p-4 sm:p-6">
+        <p className="text-sm text-red-500">{error}</p>
+      </main>
+    );
   }
 
   return (
-    <>
-      <StatusModal
-        open={statusOpen}
-        type={statusType}
-        message={statusMessage}
-        onClose={function () {
-          setStatusOpen(false);
-        }}
-      />
-
-      <ConfirmModal
-        open={deleteOpen}
-        message={
-          userToDelete ? 'Delete user "' + userToDelete.name + '"?' : ""
-        }
-        onCancel={function () {
-          setDeleteOpen(false);
-          setUserToDelete(null);
-        }}
-        onConfirm={handleConfirmDelete}
-      />
-
-      <main className="p-4 sm:p-6 space-y-6 container-responsive">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-sm text-gray-600 mt-1">
-              Manage admin and staff accounts for the hostel management
-              system.
-            </p>
-          </div>
-
-          <button
-            onClick={openAddForm}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700 text-sm"
-          >
-            + Add New User
-          </button>
+    <main className="p-4 sm:p-6 bg-gray-50 min-h-screen space-y-6">
+  
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <p className="text-sm text-gray-600 mt-1">
+            Manage admin and staff accounts with roles and access status.
+          </p>
         </div>
 
+        <button
+          onClick={function () {
+            setAddForm({
+              name: "",
+              email: "",
+              password: "",
+              role: "Staff",
+              status: "Active",
+            });
+            setShowAdd(true);
+          }}
+          className="px-4 py-2 rounded bg-emerald-600 text-white text-sm shadow hover:bg-emerald-700"
+        >
+          + Add User
+        </button>
+      </div>
+
+     
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <input
-              type="text"
-              placeholder="Search by name or email..."
-              className="border px-3 py-2 rounded text-sm flex-1 min-w-[220px]"
-              value={search}
-              onChange={function (e) {
-                setSearch(e.target.value);
-              }}
-            />
-
-            <div className="flex gap-3 flex-wrap">
-              <select
-                className="border px-3 py-2 rounded text-sm"
-                value={roleFilter}
-                onChange={function (e) {
-                  setRoleFilter(e.target.value);
-                }}
-              >
-                <option value="all">All Roles</option>
-                <option value="Admin">Admin</option>
-                <option value="Staff">Staff</option>
-              </select>
-
-              <select
-                className="border px-3 py-2 rounded text-sm"
-                value={statusFilter}
-                onChange={function (e) {
-                  setStatusFilter(e.target.value);
-                }}
-              >
-                <option value="all">All Status</option>
-                <option value="Active">Active</option>
-                <option value="Disabled">Disabled</option>
-              </select>
-            </div>
+          <div className="text-xs text-gray-500 uppercase font-semibold">
+            Total Users
           </div>
-
-          {loading && (
-            <div className="px-3 py-6 text-sm text-gray-500">
-              Loading users…
-            </div>
-          )}
-
-          {!loading && error && (
-            <div className="px-3 py-4 text-sm text-red-600">{error}</div>
-          )}
-
-          {!loading && !error && (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm border-t border-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="text-left px-3 py-2 font-semibold">Name</th>
-                    <th className="text-left px-3 py-2 font-semibold">Email</th>
-                    <th className="text-left px-3 py-2 font-semibold">Role</th>
-                    <th className="text-left px-3 py-2 font-semibold">
-                      Status
-                    </th>
-                    <th className="text-left px-3 py-2 font-semibold">
-                      Created At
-                    </th>
-                    <th className="text-right px-3 py-2 font-semibold">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredItems.length === 0 && (
-                    <tr>
-                      <td
-                        colSpan="6"
-                        className="px-3 py-4 text-center text-gray-500"
-                      >
-                        No users found.
-                      </td>
-                    </tr>
-                  )}
-
-                  {filteredItems.map(function (row) {
-                    return (
-                      <tr key={row._id} className="border-t">
-                        <td className="px-3 py-2">{row.name}</td>
-                        <td className="px-3 py-2">{row.email}</td>
-                        <td className="px-3 py-2">{row.role}</td>
-                        <td className="px-3 py-2">
-                          <StatusBadge value={row.status} />
-                        </td>
-                        <td className="px-3 py-2 text-gray-600">
-                          {row.createdAt
-                            ? new Date(row.createdAt).toLocaleDateString()
-                            : "—"}
-                        </td>
-                        <td className="px-3 py-2 text-right space-x-2">
-                          <button
-                            onClick={function () {
-                              openEditForm(row);
-                            }}
-                            className="text-blue-600 hover:underline text-xs"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={function () {
-                              handleDelete(row);
-                            }}
-                            className="text-red-600 hover:underline text-xs"
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <div className="mt-3 text-3xl font-bold">{stats.total}</div>
         </Card>
 
-        {showForm && (
-          <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-20">
-            <div className="bg-white rounded-lg shadow-lg w-full max-w-xl p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-semibold">
-                  {formMode === "add" ? "Add New User" : "Edit User"}
-                </h3>
-                <button
-                  onClick={function () {
-                    setShowForm(false);
+        <Card>
+          <div className="text-xs text-gray-500 uppercase font-semibold">
+            Admins
+          </div>
+          <div className="mt-3 text-2xl font-bold text-indigo-600">
+            {stats.admins}
+          </div>
+        </Card>
+
+        <Card>
+          <div className="text-xs text-gray-500 uppercase font-semibold">
+            Staff
+          </div>
+          <div className="mt-3 text-2xl font-bold text-sky-600">
+            {stats.staff}
+          </div>
+        </Card>
+
+        <Card>
+          <div className="text-xs text-gray-500 uppercase font-semibold">
+            Active Accounts
+          </div>
+          <div className="mt-3 text-2xl font-bold text-emerald-600">
+            {stats.active}
+          </div>
+        </Card>
+      </section>
+
+    
+      <Card title="User Directory">
+     
+        <div className="flex flex-wrap gap-3 mb-4 items-center">
+          <input
+            value={search}
+            onChange={function (e) {
+              setSearch(e.target.value);
+            }}
+            placeholder="Search by name or email..."
+            className="flex-1 min-w-[220px] border px-3 py-2 rounded text-sm"
+          />
+
+          <select
+            value={roleFilter}
+            onChange={function (e) {
+              setRoleFilter(e.target.value);
+            }}
+            className="border px-3 py-2 rounded text-sm"
+          >
+            <option value="all">All roles</option>
+            <option value="Admin">Admin</option>
+            <option value="Staff">Staff</option>
+          </select>
+
+          <select
+            value={statusFilter}
+            onChange={function (e) {
+              setStatusFilter(e.target.value);
+            }}
+            className="border px-3 py-2 rounded text-sm"
+          >
+            <option value="all">All status</option>
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+            <option value="Suspended">Suspended</option>
+          </select>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 text-left text-xs text-gray-500 border-b">
+                <th className="px-3 py-2">Name</th>
+                <th className="px-3 py-2">Email</th>
+                <th className="px-3 py-2">Role</th>
+                <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2">Created</th>
+                <th className="px-3 py-2">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(function (u) {
+                const isAdmin = (u.role || "").toLowerCase() === "admin";
+
+                return (
+                  <tr key={u._id || u.email} className="border-b">
+                    <td className="px-3 py-3">{u.name || "-"}</td>
+                    <td className="px-3 py-3">{u.email || "-"}</td>
+                    <td className="px-3 py-3">
+                      <span
+                        className={
+                          "inline-flex px-2 py-1 rounded-full text-[11px] font-semibold " +
+                          (isAdmin
+                            ? "bg-indigo-50 text-indigo-700"
+                            : "bg-sky-50 text-sky-700")
+                        }
+                      >
+                        {u.role || "Staff"}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3">
+                      <StatusPill status={u.status} />
+                    </td>
+                    <td className="px-3 py-3">
+                      {formatDate(u.createdAt)}
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={function () {
+                            openEdit(u);
+                          }}
+                          className="px-2 py-1 text-xs rounded bg-sky-50 text-sky-700"
+                        >
+                          Edit
+                        </button>
+
+                        <button
+                          onClick={function () {
+                            toggleStatus(u);
+                          }}
+                          className={
+                            "px-2 py-1 text-xs rounded " +
+                            ((u.status || "").toLowerCase() === "active"
+                              ? "bg-amber-50 text-amber-700"
+                              : "bg-emerald-50 text-emerald-700")
+                          }
+                        >
+                          {(u.status || "").toLowerCase() === "active"
+                            ? "Deactivate"
+                            : "Activate"}
+                        </button>
+
+                        <button
+                          onClick={function () {
+                            handleDelete(u);
+                          }}
+                          className="px-2 py-1 text-xs rounded bg-rose-50 text-rose-700"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+
+              {filtered.length === 0 && (
+                <tr>
+                  <td
+                    colSpan="6"
+                    className="py-6 text-center text-gray-500 text-sm"
+                  >
+                    No users found
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {showAdd && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-slate-900/40" />
+          <div className="relative z-10 w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-100 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-slate-900">
+                Add User
+              </h3>
+              <button
+                onClick={function () {
+                  setShowAdd(false);
+                }}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form
+              className="space-y-3 text-sm"
+              onSubmit={submitAdd}
+              autoComplete="off"
+            >
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">
+                  Name
+                </label>
+                <input
+                  value={addForm.name}
+                  onChange={function (e) {
+                    setAddForm(
+                      Object.assign({}, addForm, { name: e.target.value })
+                    );
                   }}
-                  className="text-gray-500 hover:text-gray-700 text-lg"
-                >
-                  ×
-                </button>
+                  className="w-full border rounded px-3 py-2"
+                  required
+                />
               </div>
 
-              <form onSubmit={handleFormSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Name
-                    </label>
-                    <input
-                      type="text"
-                      className="border px-3 py-2 rounded w-full text-sm"
-                      value={formData.name}
-                      onChange={function (e) {
-                        handleFormChange("name", e.target.value);
-                      }}
-                    />
-                  </div>
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={addForm.email}
+                  onChange={function (e) {
+                    setAddForm(
+                      Object.assign({}, addForm, { email: e.target.value })
+                    );
+                  }}
+                  className="w-full border rounded px-3 py-2"
+                  required
+                />
+              </div>
 
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      className="border px-3 py-2 rounded w-full text-sm"
-                      value={formData.email}
-                      onChange={function (e) {
-                        handleFormChange("email", e.target.value);
-                      }}
-                    />
-                  </div>
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  value={addForm.password}
+                  onChange={function (e) {
+                    setAddForm(
+                      Object.assign({}, addForm, { password: e.target.value })
+                    );
+                  }}
+                  className="w-full border rounded px-3 py-2"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">
+                    Role
+                  </label>
+                  <select
+                    value={addForm.role}
+                    onChange={function (e) {
+                      setAddForm(
+                        Object.assign({}, addForm, { role: e.target.value })
+                      );
+                    }}
+                    className="w-full border rounded px-3 py-2"
+                  >
+                    <option>Admin</option>
+                    <option>Staff</option>
+                  </select>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Password{" "}
-                    {formMode === "edit" && (
-                      <span className="text-xs text-gray-500">
-                        (leave blank to keep current)
-                      </span>
-                    )}
+                  <label className="block text-xs text-slate-500 mb-1">
+                    Status
                   </label>
-                  <input
-                    type="password"
-                    className="border px-3 py-2 rounded w-full text-sm"
-                    value={formData.password}
+                  <select
+                    value={addForm.status}
                     onChange={function (e) {
-                      handleFormChange("password", e.target.value);
+                      setAddForm(
+                        Object.assign({}, addForm, { status: e.target.value })
+                      );
                     }}
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Role
-                    </label>
-                    <select
-                      className="border px-3 py-2 rounded w-full text-sm"
-                      value={formData.role}
-                      onChange={function (e) {
-                        handleFormChange("role", e.target.value);
-                      }}
-                    >
-                      <option value="Admin">Admin</option>
-                      <option value="Staff">Staff</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Status
-                    </label>
-                    <select
-                      className="border px-3 py-2 rounded w-full text-sm"
-                      value={formData.status}
-                      onChange={function (e) {
-                        handleFormChange("status", e.target.value);
-                      }}
-                    >
-                      <option value="Active">Active</option>
-                      <option value="Disabled">Disabled</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={function () {
-                      setShowForm(false);
-                    }}
-                    className="px-4 py-2 border rounded text-sm"
+                    className="w-full border rounded px-3 py-2"
                   >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-blue-600 text-white rounded text-sm"
-                  >
-                    {formMode === "add" ? "Create User" : "Save Changes"}
-                  </button>
+                    <option>Active</option>
+                    <option>Inactive</option>
+                    <option>Suspended</option>
+                  </select>
                 </div>
-              </form>
-            </div>
+              </div>
+
+              <div className="flex justify-end gap-2 mt-4">
+                <button
+                  type="button"
+                  onClick={function () {
+                    setShowAdd(false);
+                  }}
+                  className="px-3 py-1.5 text-sm border rounded"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-3 py-1.5 text-sm rounded bg-emerald-600 text-white"
+                >
+                  Save
+                </button>
+              </div>
+            </form>
           </div>
-        )}
-      </main>
-    </>
+        </div>
+      )}
+
+    
+      {showEdit && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-slate-900/40" />
+          <div className="relative z-10 w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-100 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-slate-900">
+                Edit User
+              </h3>
+              <button
+                onClick={function () {
+                  setShowEdit(false);
+                }}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form
+              className="space-y-3 text-sm"
+              onSubmit={submitEdit}
+              autoComplete="off"
+            >
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">
+                  Name
+                </label>
+                <input
+                  value={editForm.name}
+                  onChange={function (e) {
+                    setEditForm(
+                      Object.assign({}, editForm, { name: e.target.value })
+                    );
+                  }}
+                  className="w-full border rounded px-3 py-2"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={editForm.email}
+                  onChange={function (e) {
+                    setEditForm(
+                      Object.assign({}, editForm, { email: e.target.value })
+                    );
+                  }}
+                  className="w-full border rounded px-3 py-2"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">
+                    Role
+                  </label>
+                  <select
+                    value={editForm.role}
+                    onChange={function (e) {
+                      setEditForm(
+                        Object.assign({}, editForm, { role: e.target.value })
+                      );
+                    }}
+                    className="w-full border rounded px-3 py-2"
+                  >
+                    <option>Admin</option>
+                    <option>Staff</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">
+                    Status
+                  </label>
+                  <select
+                    value={editForm.status}
+                    onChange={function (e) {
+                      setEditForm(
+                        Object.assign({}, editForm, { status: e.target.value })
+                      );
+                    }}
+                    className="w-full border rounded px-3 py-2"
+                  >
+                    <option>Active</option>
+                    <option>Inactive</option>
+                    <option>Suspended</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 mt-4">
+                <button
+                  type="button"
+                  onClick={function () {
+                    setShowEdit(false);
+                  }}
+                  className="px-3 py-1.5 text-sm border rounded"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-3 py-1.5 text-sm rounded bg-emerald-600 text-white"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+     
+      <StatusModal
+        open={modalOpen}
+        type={modalType}
+        message={modalMessage}
+        onClose={function () {
+          setModalOpen(false);
+        }}
+      />
+    </main>
   );
 }
