@@ -89,6 +89,58 @@ function StatusChip(props) {
 }
 
 
+function ConfirmDeleteModal({ open, item, loading, onCancel, onConfirm }) {
+  if (!open || !item) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+      <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" />
+      <div className="relative z-10 bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-md p-6">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="text-3xl text-amber-500">⚠</div>
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">
+              Delete payment?
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Room {item.roomNumber} • {item.residentName}
+            </p>
+          </div>
+        </div>
+
+        <p className="text-sm text-slate-700 mb-4">
+          Are you sure you want to delete this payment record for room{" "}
+          <span className="font-semibold">{item.roomNumber}</span>?{" "}
+          <br />
+          <span className="text-rose-600 font-medium">
+            This action cannot be undone.
+          </span>
+        </p>
+
+        <div className="flex justify-end gap-2 mt-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={loading}
+            className="px-4 py-2 text-sm border rounded-lg text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={loading}
+            className="px-4 py-2 text-sm rounded-lg bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-60"
+          >
+            {loading ? "Deleting…" : "Delete"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 export default function BillingPage() {
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -150,6 +202,11 @@ export default function BillingPage() {
   const [authorize, setAuthorize] = useState(false);
 
  
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteProcessing, setDeleteProcessing] = useState(false);
+
+ 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalType, setModalType] = useState("success");
   const [modalMessage, setModalMessage] = useState("");
@@ -168,7 +225,7 @@ export default function BillingPage() {
     setModalOpen(true);
   }
 
-  
+ 
   useEffect(function () {
     let mounted = true;
 
@@ -211,7 +268,7 @@ export default function BillingPage() {
     };
   }, []);
 
- 
+  
   const stats = useMemo(
     function () {
       var total = payments.length;
@@ -259,7 +316,7 @@ export default function BillingPage() {
     [payments, search, statusFilter]
   );
 
-
+  
   async function markAsPaid(id) {
     if (!id) throw new Error("Invoice id missing");
     const url = API_BASE + "/api/billing/" + id + "/pay";
@@ -398,7 +455,6 @@ export default function BillingPage() {
     }
   }
 
- 
   async function submitAdd(e) {
     e.preventDefault();
 
@@ -539,18 +595,19 @@ export default function BillingPage() {
     }
   }
 
-  async function handleDelete(p) {
+
+  function handleDeleteClick(p) {
     if (!p || !p._id) return;
+    setDeleteTarget(p);
+    setDeleteOpen(true);
+  }
 
-    const ok = window.confirm(
-      "Are you sure you want to delete this payment record for room " +
-        (p.roomNumber || "") +
-        "?\n\nThis action cannot be undone."
-    );
-    if (!ok) return;
+  async function confirmDelete() {
+    if (!deleteTarget || !deleteTarget._id) return;
 
+    setDeleteProcessing(true);
     try {
-      const res = await fetch(API_BASE + "/api/billing/" + p._id, {
+      const res = await fetch(API_BASE + "/api/billing/" + deleteTarget._id, {
         method: "DELETE",
         headers: withAuth(),
       });
@@ -569,16 +626,20 @@ export default function BillingPage() {
 
       setPayments(function (prev) {
         return prev.filter(function (x) {
-          return x._id !== p._id;
+          return x._id !== deleteTarget._id;
         });
       });
 
       showSuccess("Payment record has been deleted.");
+      setDeleteOpen(false);
+      setDeleteTarget(null);
     } catch (err) {
-      console.error("handleDelete err", err);
+      console.error("confirmDelete err", err);
       showError(
         "A network error occurred while deleting. Please try again."
       );
+    } finally {
+      setDeleteProcessing(false);
     }
   }
 
@@ -589,15 +650,13 @@ export default function BillingPage() {
   }
 
   function sendReminder() {
-    showSuccess(
-      "A payment reminder has been noted for this resident."
-    );
+    showSuccess("A payment reminder has been noted for this resident.");
   }
 
-  
+
   return (
     <main className="p-4 sm:p-6 bg-gray-50 min-h-screen space-y-6">
-     
+    
       <div className="flex justify-between items-start flex-wrap gap-3">
         <div>
           <p className="text-sm text-gray-500">
@@ -645,19 +704,15 @@ export default function BillingPage() {
         </div>
       </div>
 
-      
+     
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
-          <div className="text-xs text-gray-500">
-            Total Payments
-          </div>
+          <div className="text-xs text-gray-500">Total Payments</div>
           <div className="text-3xl font-bold">{stats.total}</div>
         </Card>
 
         <Card>
-          <div className="text-xs text-gray-500">
-            Total Amount
-          </div>
+          <div className="text-xs text-gray-500">Total Amount</div>
           <div className="text-2xl font-bold text-purple-600">
             {formatCurrency(stats.totalAmount)}
           </div>
@@ -742,18 +797,14 @@ export default function BillingPage() {
                       <td className="px-3 py-3 max-w-[220px]">
                         {p.invoiceNo}
                       </td>
-                      <td className="px-3 py-3">
-                        {p.residentName}
-                      </td>
+                      <td className="px-3 py-3">{p.residentName}</td>
                       <td className="px-3 py-3">{p.roomNumber}</td>
                       <td className="px-3 py-3">
                         {formatCurrency(p.amount)}
                       </td>
                       <td className="px-3 py-3">
                         {p.dueDate
-                          ? new Date(
-                              p.dueDate
-                            ).toLocaleDateString()
+                          ? new Date(p.dueDate).toLocaleDateString()
                           : "-"}
                       </td>
                       <td className="px-3 py-3">
@@ -771,7 +822,7 @@ export default function BillingPage() {
                             View
                           </button>
 
-                        
+                         
                           {isPending && (
                             <button
                               onClick={function () {
@@ -783,7 +834,7 @@ export default function BillingPage() {
                             </button>
                           )}
 
-                         
+                       
                           {isPaid && (
                             <button
                               disabled
@@ -810,7 +861,7 @@ export default function BillingPage() {
 
                           <button
                             onClick={function () {
-                              if (!isPaid) handleDelete(p);
+                              if (!isPaid) handleDeleteClick(p);
                             }}
                             disabled={isPaid}
                             className={
@@ -853,7 +904,7 @@ export default function BillingPage() {
         )}
       </Card>
 
-      
+  
       {payNowOpen && payNowTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
@@ -886,7 +937,6 @@ export default function BillingPage() {
               </button>
             </div>
 
-            
             <div
               className="p-4 border-b"
               style={{
@@ -896,25 +946,19 @@ export default function BillingPage() {
             >
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start text-sm">
                 <div>
-                  <div className="text-xs text-slate-500">
-                    Invoice
-                  </div>
+                  <div className="text-xs text-slate-500">Invoice</div>
                   <div className="font-semibold text-slate-800">
                     {payNowTarget.invoiceNo}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs text-slate-500">
-                    Resident
-                  </div>
+                  <div className="text-xs text-slate-500">Resident</div>
                   <div className="font-semibold text-slate-800">
                     {payNowTarget.residentName}
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-xs text-slate-500">
-                    Amount
-                  </div>
+                  <div className="text-xs text-slate-500">Amount</div>
                   <div className="font-semibold text-sky-900 text-lg">
                     {formatCurrency(payNowTarget.amount)}
                   </div>
@@ -922,7 +966,6 @@ export default function BillingPage() {
               </div>
             </div>
 
-          
             <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
              
               <div className="lg:col-span-2">
@@ -931,7 +974,6 @@ export default function BillingPage() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  
                   <label
                     className={
                       "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition " +
@@ -964,7 +1006,6 @@ export default function BillingPage() {
                     </div>
                   </label>
 
-                 
                   <label
                     className={
                       "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition " +
@@ -995,7 +1036,6 @@ export default function BillingPage() {
                     </div>
                   </label>
 
-                 
                   <label
                     className={
                       "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition " +
@@ -1021,7 +1061,6 @@ export default function BillingPage() {
                     </div>
                   </label>
 
-                 
                   <label
                     className={
                       "flex items-center gap-3 p-3 rounded-lg cursor-pointer transition " +
@@ -1043,7 +1082,6 @@ export default function BillingPage() {
                   </label>
                 </div>
 
-                
                 <div className="mt-4">
                   {paymentMethod === "Card" && (
                     <div className="space-y-3">
@@ -1160,26 +1198,20 @@ export default function BillingPage() {
                 </div>
               </div>
 
-             
+              
               <aside className="order-first lg:order-last">
                 <div className="border rounded-lg p-4 shadow-sm bg-white w-full">
-                  <div className="text-xs text-slate-500">
-                    Invoice
-                  </div>
+                  <div className="text-xs text-slate-500">Invoice</div>
                   <div className="font-semibold mb-3 text-slate-800">
                     {payNowTarget.invoiceNo}
                   </div>
 
-                  <div className="text-xs text-slate-500">
-                    Resident
-                  </div>
+                  <div className="text-xs text-slate-500">Resident</div>
                   <div className="font-medium mb-3">
                     {payNowTarget.residentName}
                   </div>
 
-                  <div className="text-xs text-slate-500">
-                    Amount
-                  </div>
+                  <div className="text-xs text-slate-500">Amount</div>
                   <div className="text-2xl font-bold text-sky-800 mb-4">
                     {formatCurrency(payNowTarget.amount)}
                   </div>
@@ -1209,7 +1241,6 @@ export default function BillingPage() {
               </aside>
             </div>
 
-           
             <div className="flex items-center justify-end gap-3 p-4 border-t">
               <button
                 onClick={function () {
@@ -1242,7 +1273,7 @@ export default function BillingPage() {
         </div>
       )}
 
-    
+      
       {showView && viewPayment && (
         <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" />
@@ -1370,7 +1401,7 @@ export default function BillingPage() {
         </div>
       )}
 
-      
+     
       {showAdd && (
         <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-slate-900/40" />
@@ -1712,7 +1743,7 @@ export default function BillingPage() {
               className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm"
               onSubmit={function (e) {
                 e.preventDefault();
-               
+
                 if (
                   !invoiceData.residentName ||
                   !invoiceData.roomNumber ||
@@ -1732,8 +1763,7 @@ export default function BillingPage() {
                   month: invoiceData.month,
                   status: "Pending",
                   method: "UPI",
-                  dueDate:
-                    invoiceData.dueDate || addDaysISO(30),
+                  dueDate: invoiceData.dueDate || addDaysISO(30),
                   paidOn: "",
                   notes: invoiceData.notes || "",
                   invoiceNo:
@@ -1774,10 +1804,7 @@ export default function BillingPage() {
                       "Invoice has been generated successfully."
                     );
                   } catch (err) {
-                    console.error(
-                      "handleGenerateInvoice err",
-                      err
-                    );
+                    console.error("handleGenerateInvoice err", err);
                     showError(
                       "A network error occurred while generating the invoice. Please try again."
                     );
@@ -1881,9 +1908,7 @@ export default function BillingPage() {
                 </label>
                 <input
                   type="date"
-                  value={formatDateForInput(
-                    invoiceData.dueDate
-                  )}
+                  value={formatDateForInput(invoiceData.dueDate)}
                   onChange={function (e) {
                     setInvoiceData(
                       Object.assign({}, invoiceData, {
@@ -1951,7 +1976,20 @@ export default function BillingPage() {
         </div>
       )}
 
-      
+     
+      <ConfirmDeleteModal
+        open={deleteOpen}
+        item={deleteTarget}
+        loading={deleteProcessing}
+        onCancel={function () {
+          if (deleteProcessing) return;
+          setDeleteOpen(false);
+          setDeleteTarget(null);
+        }}
+        onConfirm={confirmDelete}
+      />
+
+     
       <StatusModal
         open={modalOpen}
         type={modalType}
