@@ -4,6 +4,8 @@ import StatusModal from "../components/StatusModal";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
+
+
 function getAuthToken() {
   try {
     return (
@@ -53,6 +55,30 @@ function StatusPill(props) {
   );
 }
 
+
+function isWeakPassword(pwd) {
+  if (!pwd) return true;
+
+  const weakList = [
+    "123",
+    "1234",
+    "12345",
+    "123456",
+    "password",
+    "admin",
+    "abcd",
+    "qwerty",
+  ];
+
+  if (weakList.indexOf(pwd.toLowerCase()) !== -1) return true;
+
+  if (pwd.length < 6) return true;
+
+  return false;
+}
+
+
+
 export default function UserManagementPage() {
   const [users, setUsers] = useState([]);
 
@@ -87,9 +113,9 @@ export default function UserManagementPage() {
   const [modalType, setModalType] = useState("success");
   const [modalMessage, setModalMessage] = useState("");
 
-  
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState(null);
+
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmUser, setConfirmUser] = useState(null);
 
   function showSuccess(msg) {
     setModalType("success");
@@ -104,6 +130,8 @@ export default function UserManagementPage() {
     );
     setModalOpen(true);
   }
+
+  
 
   useEffect(function () {
     let mounted = true;
@@ -146,6 +174,8 @@ export default function UserManagementPage() {
       mounted = false;
     };
   }, []);
+
+ 
 
   const stats = useMemo(
     function () {
@@ -193,11 +223,20 @@ export default function UserManagementPage() {
     [users, search, roleFilter, statusFilter]
   );
 
+ 
+
   async function submitAdd(e) {
     e.preventDefault();
 
     if (!addForm.name || !addForm.email || !addForm.password) {
       showError("Please fill in name, email and password.");
+      return;
+    }
+
+    if (isWeakPassword(addForm.password)) {
+      showError(
+        "Password too weak. Please use at least 6 characters with a mix of letters and numbers."
+      );
       return;
     }
 
@@ -251,6 +290,8 @@ export default function UserManagementPage() {
       showError("Network error while creating user. Please try again.");
     }
   }
+
+  
 
   function openEdit(u) {
     setEditForm({
@@ -320,6 +361,8 @@ export default function UserManagementPage() {
     }
   }
 
+
+
   async function toggleStatus(u) {
     if (!u || !u._id) return;
 
@@ -370,29 +413,25 @@ export default function UserManagementPage() {
     }
   }
 
- 
-  function handleDelete(u) {
-    if (!u || !u._id) return;
+  
 
+  function openDeleteConfirm(u) {
     const isAdmin = (u.role || "").toLowerCase() === "admin";
     if (isAdmin) {
       showError("Admin accounts cannot be deleted.");
       return;
     }
 
-    setDeleteTarget(u);
-    setDeleteModalOpen(true);
+    setConfirmUser(u);
+    setConfirmOpen(true);
   }
 
- 
   async function confirmDelete() {
-    if (!deleteTarget || !deleteTarget._id) {
-      setDeleteModalOpen(false);
-      setDeleteTarget(null);
+    const u = confirmUser;
+    if (!u || !u._id) {
+      setConfirmOpen(false);
       return;
     }
-
-    const u = deleteTarget;
 
     try {
       const res = await fetch(API_BASE + "/api/users/" + u._id, {
@@ -411,27 +450,27 @@ export default function UserManagementPage() {
             ? data.error
             : "Unable to delete this user. Please try again."
         );
-      } else {
-        setUsers(function (prev) {
-          return prev.filter(function (x) {
-            return x._id !== u._id;
-          });
-        });
-        showSuccess("User account has been deleted.");
+        setConfirmOpen(false);
+        return;
       }
+
+      setUsers(function (prev) {
+        return prev.filter(function (x) {
+          return x._id !== u._id;
+        });
+      });
+
+      setConfirmOpen(false);
+      setConfirmUser(null);
+      showSuccess("User account has been deleted.");
     } catch (err) {
       console.error("delete user network err", err);
+      setConfirmOpen(false);
       showError("Network error while deleting user. Please try again.");
-    } finally {
-      setDeleteModalOpen(false);
-      setDeleteTarget(null);
     }
   }
 
-  function closeDeleteModal() {
-    setDeleteModalOpen(false);
-    setDeleteTarget(null);
-  }
+  
 
   if (loading) {
     return (
@@ -451,6 +490,7 @@ export default function UserManagementPage() {
 
   return (
     <main className="p-4 sm:p-6 bg-gray-50 min-h-screen space-y-6">
+   
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <p className="text-sm text-gray-600 mt-1">
@@ -475,6 +515,7 @@ export default function UserManagementPage() {
         </button>
       </div>
 
+      
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <div className="text-xs text-gray-500 uppercase font-semibold">
@@ -511,6 +552,7 @@ export default function UserManagementPage() {
         </Card>
       </section>
 
+     
       <Card title="User Directory">
         <div className="flex flex-wrap gap-3 mb-4 items-center">
           <input
@@ -614,7 +656,7 @@ export default function UserManagementPage() {
 
                         <button
                           onClick={function () {
-                            handleDelete(u);
+                            openDeleteConfirm(u);
                           }}
                           className="px-2 py-1 text-xs rounded bg-rose-50 text-rose-700"
                         >
@@ -641,6 +683,7 @@ export default function UserManagementPage() {
         </div>
       </Card>
 
+     
       {showAdd && (
         <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-slate-900/40" />
@@ -712,6 +755,9 @@ export default function UserManagementPage() {
                   className="w-full border rounded px-3 py-2"
                   required
                 />
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Use at least 6 characters with a mix of letters and numbers.
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -774,6 +820,7 @@ export default function UserManagementPage() {
         </div>
       )}
 
+      
       {showEdit && (
         <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-slate-900/40" />
@@ -890,7 +937,7 @@ export default function UserManagementPage() {
         </div>
       )}
 
-      
+     
       <StatusModal
         open={modalOpen}
         type={modalType}
@@ -900,25 +947,22 @@ export default function UserManagementPage() {
         }}
       />
 
-   
+  
       <StatusModal
-        open={deleteModalOpen}
+        open={confirmOpen}
         type="warning"
         message={
-          deleteTarget
-            ? "Are you sure you want to delete the account for " +
-              (deleteTarget.name || deleteTarget.email || "this user") +
-              "? This action cannot be undone."
-            : ""
+          "Are you sure you want to delete the account for " +
+          (confirmUser && (confirmUser.name || confirmUser.email || "this user")) +
+          "?\nThis action cannot be undone."
         }
+        onClose={function () {
+          setConfirmOpen(false);
+          setConfirmUser(null);
+        }}
+        onConfirm={confirmDelete}
         confirmLabel="Delete"
         cancelLabel="Cancel"
-        onClose={function () {
-          closeDeleteModal();
-        }}
-        onConfirm={function () {
-          confirmDelete();
-        }}
       />
     </main>
   );
