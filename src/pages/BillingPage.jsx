@@ -112,9 +112,7 @@ function ConfirmDeleteModal({ open, item, loading, onCancel, onConfirm }) {
           Are you sure you want to delete this payment record for room{" "}
           <span className="font-semibold">{item.roomNumber}</span>?{" "}
           <br />
-          <span className="text-rose-600 font-medium">
-            This action cannot be undone.
-          </span>
+          
         </p>
 
         <div className="flex justify-end gap-2 mt-2">

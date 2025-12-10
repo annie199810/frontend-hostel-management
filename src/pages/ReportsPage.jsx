@@ -1,12 +1,31 @@
-
 import React, { useEffect, useMemo, useState } from "react";
 import Card from "../components/Card";
 
-var API_BASE = import.meta.env.VITE_API_BASE_URL + "/api";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
 function formatCurrency(v) {
   if (!v) return "₹0";
   return "₹" + Number(v).toLocaleString("en-IN");
+}
+
+function getAuthToken() {
+  try {
+    return (
+      localStorage.getItem("authToken") ||
+      localStorage.getItem("token") ||
+      ""
+    );
+  } catch (e) {
+    return "";
+  }
+}
+
+function withAuth(headers) {
+  const t = getAuthToken();
+  if (!t) return headers || {};
+  return Object.assign({}, headers || {}, {
+    Authorization: "Bearer " + t,
+  });
 }
 
 export default function ReportsPage() {
@@ -24,10 +43,14 @@ export default function ReportsPage() {
 
       try {
         const [roomsRes, billsRes, maintRes] = await Promise.all([
-          fetch(API_BASE + "/rooms"),
-          fetch(API_BASE + "/billing"),
-          fetch(API_BASE + "/maintenance"),
+          fetch(API_BASE + "/api/rooms"),
+          fetch(API_BASE + "/api/billing", { headers: withAuth() }),
+          fetch(API_BASE + "/api/maintenance", { headers: withAuth() }),
         ]);
+
+        if (!roomsRes.ok || !billsRes.ok || !maintRes.ok) {
+          throw new Error("API error while loading reports");
+        }
 
         const [roomsJson, billsJson, maintJson] = await Promise.all([
           roomsRes.json(),
@@ -36,30 +59,35 @@ export default function ReportsPage() {
         ]);
 
         
-        var roomsData = Array.isArray(roomsJson)
-          ? roomsJson
-          : Array.isArray(roomsJson.rooms)
+        const roomsData = Array.isArray(roomsJson.rooms)
           ? roomsJson.rooms
+          : Array.isArray(roomsJson)
+          ? roomsJson
           : [];
         setRooms(roomsData);
 
-      
-        var billsData = Array.isArray(billsJson)
-          ? billsJson
+        
+        const billsData = Array.isArray(billsJson.payments)
+          ? billsJson.payments
           : Array.isArray(billsJson.bills)
           ? billsJson.bills
+          : Array.isArray(billsJson)
+          ? billsJson
           : [];
         setBills(billsData);
 
-       
-        var maintData = Array.isArray(maintJson)
-          ? maintJson
-          : Array.isArray(maintJson.requests)
+        
+        const maintData = Array.isArray(maintJson.requests)
           ? maintJson.requests
+          : Array.isArray(maintJson)
+          ? maintJson
           : [];
         setMaintenance(maintData);
       } catch (err) {
-        setError("Failed to load reports data");
+        console.error("Reports load err", err);
+        setError(
+          "Unable to load reports at the moment. Please try again shortly."
+        );
       } finally {
         setLoading(false);
       }
@@ -162,6 +190,7 @@ export default function ReportsPage() {
     billingStats.total > 0
       ? Math.round((billingStats.paid / billingStats.total) * 100)
       : 0;
+
   var pendingPlusOverdue = billingStats.pending + billingStats.overdue;
   var pendingPct =
     billingStats.total > 0
@@ -197,7 +226,7 @@ export default function ReportsPage() {
 
   return (
     <main className="p-4 sm:p-6 space-y-6">
-     
+   
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <p className="text-sm text-gray-600 mt-1">
@@ -206,7 +235,7 @@ export default function ReportsPage() {
         </div>
       </div>
 
-     
+      
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <div className="text-xs font-semibold text-gray-500 uppercase">
@@ -247,7 +276,7 @@ export default function ReportsPage() {
         </Card>
       </div>
 
-      
+     
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         
         <Card title="Monthly Revenue">
@@ -327,7 +356,7 @@ export default function ReportsPage() {
           </div>
         </Card>
 
-        
+      
         <Card title="Room Availability">
           <div className="flex items-center gap-6 mt-2">
             <div
@@ -361,8 +390,7 @@ export default function ReportsPage() {
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full bg-amber-500" />
                 <span>
-                  Under Maintenance –{" "}
-                  {roomStats.maintenanceCount}
+                  Under Maintenance – {roomStats.maintenanceCount}
                 </span>
               </div>
             </div>
@@ -370,7 +398,7 @@ export default function ReportsPage() {
         </Card>
       </div>
 
-      
+     
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card title="Maintenance Status">
           <div className="mt-4 space-y-3 text-xs">
