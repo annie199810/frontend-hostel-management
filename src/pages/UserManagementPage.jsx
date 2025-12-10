@@ -4,8 +4,6 @@ import StatusModal from "../components/StatusModal";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
-
-
 function getAuthToken() {
   try {
     return (
@@ -47,21 +45,13 @@ function StatusPill(props) {
       </span>
     );
   }
-  if (status === "suspended") {
-    return (
-      <span className={base + " bg-amber-50 text-amber-700"}>
-        ● Suspended
-      </span>
-    );
-  }
+
   return (
     <span className={base + " bg-slate-100 text-slate-500"}>
       ● Inactive
     </span>
   );
 }
-
-
 
 export default function UserManagementPage() {
   const [users, setUsers] = useState([]);
@@ -97,6 +87,10 @@ export default function UserManagementPage() {
   const [modalType, setModalType] = useState("success");
   const [modalMessage, setModalMessage] = useState("");
 
+  
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
   function showSuccess(msg) {
     setModalType("success");
     setModalMessage(msg);
@@ -110,8 +104,6 @@ export default function UserManagementPage() {
     );
     setModalOpen(true);
   }
-
-
 
   useEffect(function () {
     let mounted = true;
@@ -155,8 +147,6 @@ export default function UserManagementPage() {
     };
   }, []);
 
-
-
   const stats = useMemo(
     function () {
       var total = users.length;
@@ -178,8 +168,6 @@ export default function UserManagementPage() {
     },
     [users]
   );
-
-  
 
   const filtered = useMemo(
     function () {
@@ -204,8 +192,6 @@ export default function UserManagementPage() {
     },
     [users, search, roleFilter, statusFilter]
   );
-
- 
 
   async function submitAdd(e) {
     e.preventDefault();
@@ -265,8 +251,6 @@ export default function UserManagementPage() {
       showError("Network error while creating user. Please try again.");
     }
   }
-
-  /* ---------- edit user ---------- */
 
   function openEdit(u) {
     setEditForm({
@@ -336,12 +320,9 @@ export default function UserManagementPage() {
     }
   }
 
- 
-
   async function toggleStatus(u) {
     if (!u || !u._id) return;
 
-    
     const isAdmin = (u.role || "").toLowerCase() === "admin";
     if (isAdmin) {
       showError("Admin accounts cannot be deactivated from here.");
@@ -389,9 +370,8 @@ export default function UserManagementPage() {
     }
   }
 
-  /* ---------- delete user ---------- */
-
-  async function handleDelete(u) {
+ 
+  function handleDelete(u) {
     if (!u || !u._id) return;
 
     const isAdmin = (u.role || "").toLowerCase() === "admin";
@@ -400,12 +380,19 @@ export default function UserManagementPage() {
       return;
     }
 
-    const ok = window.confirm(
-      "Are you sure you want to delete the account for " +
-        (u.name || u.email || "this user") +
-        "?\n\nThis action cannot be undone."
-    );
-    if (!ok) return;
+    setDeleteTarget(u);
+    setDeleteModalOpen(true);
+  }
+
+ 
+  async function confirmDelete() {
+    if (!deleteTarget || !deleteTarget._id) {
+      setDeleteModalOpen(false);
+      setDeleteTarget(null);
+      return;
+    }
+
+    const u = deleteTarget;
 
     try {
       const res = await fetch(API_BASE + "/api/users/" + u._id, {
@@ -424,23 +411,27 @@ export default function UserManagementPage() {
             ? data.error
             : "Unable to delete this user. Please try again."
         );
-        return;
-      }
-
-      setUsers(function (prev) {
-        return prev.filter(function (x) {
-          return x._id !== u._id;
+      } else {
+        setUsers(function (prev) {
+          return prev.filter(function (x) {
+            return x._id !== u._id;
+          });
         });
-      });
-
-      showSuccess("User account has been deleted.");
+        showSuccess("User account has been deleted.");
+      }
     } catch (err) {
       console.error("delete user network err", err);
       showError("Network error while deleting user. Please try again.");
+    } finally {
+      setDeleteModalOpen(false);
+      setDeleteTarget(null);
     }
   }
 
-  
+  function closeDeleteModal() {
+    setDeleteModalOpen(false);
+    setDeleteTarget(null);
+  }
 
   if (loading) {
     return (
@@ -460,7 +451,6 @@ export default function UserManagementPage() {
 
   return (
     <main className="p-4 sm:p-6 bg-gray-50 min-h-screen space-y-6">
-  
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <p className="text-sm text-gray-600 mt-1">
@@ -485,7 +475,6 @@ export default function UserManagementPage() {
         </button>
       </div>
 
-     
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <div className="text-xs text-gray-500 uppercase font-semibold">
@@ -522,9 +511,7 @@ export default function UserManagementPage() {
         </Card>
       </section>
 
-    
       <Card title="User Directory">
-     
         <div className="flex flex-wrap gap-3 mb-4 items-center">
           <input
             value={search}
@@ -557,7 +544,6 @@ export default function UserManagementPage() {
             <option value="all">All status</option>
             <option value="Active">Active</option>
             <option value="Inactive">Inactive</option>
-            <option value="Suspended">Suspended</option>
           </select>
         </div>
 
@@ -762,7 +748,6 @@ export default function UserManagementPage() {
                   >
                     <option>Active</option>
                     <option>Inactive</option>
-                    <option>Suspended</option>
                   </select>
                 </div>
               </div>
@@ -789,7 +774,6 @@ export default function UserManagementPage() {
         </div>
       )}
 
-    
       {showEdit && (
         <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-slate-900/40" />
@@ -880,7 +864,6 @@ export default function UserManagementPage() {
                   >
                     <option>Active</option>
                     <option>Inactive</option>
-                    <option>Suspended</option>
                   </select>
                 </div>
               </div>
@@ -907,13 +890,34 @@ export default function UserManagementPage() {
         </div>
       )}
 
-     
+      
       <StatusModal
         open={modalOpen}
         type={modalType}
         message={modalMessage}
         onClose={function () {
           setModalOpen(false);
+        }}
+      />
+
+   
+      <StatusModal
+        open={deleteModalOpen}
+        type="warning"
+        message={
+          deleteTarget
+            ? "Are you sure you want to delete the account for " +
+              (deleteTarget.name || deleteTarget.email || "this user") +
+              "? This action cannot be undone."
+            : ""
+        }
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onClose={function () {
+          closeDeleteModal();
+        }}
+        onConfirm={function () {
+          confirmDelete();
         }}
       />
     </main>
