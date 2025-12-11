@@ -22,7 +22,6 @@ export default function LoginPage() {
       const res = await login({ email, password });
 
       if (res && res.ok && res.token) {
-      
         navigate("/", {
           replace: true,
           state: { justLoggedIn: true },
@@ -44,80 +43,115 @@ export default function LoginPage() {
   }
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center px-4 relative"
-      style={{
-        backgroundImage:
-          "linear-gradient(180deg, rgba(8,15,30,0.28), rgba(6,10,24,0.36)), url('/hostel-bg.png')",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
-      }}
-    >
-      <div className="absolute inset-0 pointer-events-none bg-black/10 backdrop-blur-sm" />
+    <>
+      
+      <style>
+        {`
+          input:-webkit-autofill {
+            -webkit-box-shadow: 0 0 0 1000px white inset !important;
+            -webkit-text-fill-color: #111 !important;
+          }
+        `}
+      </style>
 
-      <div className="relative w-full max-w-md z-10">
-        <div className="bg-white/8 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
-          <div className="p-6 sm:p-8">
-            <h1 className="text-center text-xl font-semibold text-white/95">
-              Hostel Manager — Sign in
+      <div
+        className="min-h-screen flex items-center justify-center px-4"
+        style={{
+          background: "linear-gradient(135deg, #4F46E5, #6366F1)", 
+        }}
+      >
+        <div className="w-full max-w-md">
+          <div className="bg-white rounded-2xl shadow-xl p-8">
+            <h1 className="text-center text-xl font-semibold text-gray-800">
+              Hostel Manager — Sign In
             </h1>
 
-            <form
-              onSubmit={handleSubmit}
-              autoComplete="off"
-              className="mt-6 space-y-4"
-            >
+            <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+
+             
               <input type="text" style={{ display: "none" }} />
               <input type="password" style={{ display: "none" }} />
 
+          
               <div>
-                <label className="block text-sm text-white/80 mb-2">Email</label>
+                <label className="block text-sm text-gray-600 mb-1">Email</label>
                 <input
                   type="email"
                   required
+                  autoComplete="off"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@hostel.com"
-                  className="w-full px-4 py-2 rounded-lg bg-white/18 border border-white/12 text-white"
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300
+                             bg-white focus:ring focus:ring-indigo-200 outline-none"
                 />
               </div>
 
+             
               <div>
-                <label className="block text-sm text-white/80 mb-2">Password</label>
+                <label className="block text-sm text-gray-600 mb-1">Password</label>
                 <input
                   type="password"
                   required
+                  autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-2 rounded-lg bg-white/18 border border-white/12 text-white"
+                  className="
+                    w-full px-4 py-2 rounded-lg border border-gray-300
+                    bg-white focus:ring focus:ring-indigo-200 outline-none
+                  "
                 />
               </div>
 
-              {error && <div className="text-sm text-rose-400">{error}</div>}
+              <div className="flex items-center justify-between text-sm text-gray-700">
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={remember}
+                    onChange={(e) => setRemember(e.target.checked)}
+                  />
+                  Remember me
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() => navigate("/forgot")}
+                  className="text-indigo-600 hover:underline"
+                >
+                  Forgot?
+                </button>
+              </div>
+
+              {error && (
+                <div className="text-sm text-red-600 text-center">{error}</div>
+              )}
 
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full px-4 py-3 rounded-lg bg-gradient-to-r from-indigo-500 to-indigo-600 text-white"
+                className="w-full px-4 py-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
               >
                 {loading ? "Signing in…" : "Sign In"}
               </button>
 
-              <div className="text-center mt-3 text-sm text-white/80">
+              <div className="text-center mt-3 text-sm text-gray-700">
                 New here?{" "}
-                <button onClick={goToRegister} className="text-indigo-200 hover:underline">
+                <button
+                  type="button"
+                  onClick={goToRegister}
+                  className="text-indigo-600 hover:underline"
+                >
                   Create an account
                 </button>
               </div>
             </form>
-          </div>
 
-          <div className="px-6 py-3 bg-white/6 border-t border-white/8 text-center text-xs text-white/70">
-            Demo: admin@hostel.com / admin123
+             <div className="px-6 py-3 bg-white/6 border-t border-black/8 text-center text-xs text-black/70">
+            Demo: <span className="font-medium">admin@hostel.com</span> /{" "}
+            <span className="font-medium">admin123</span>
+          </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
