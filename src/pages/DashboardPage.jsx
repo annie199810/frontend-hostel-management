@@ -68,6 +68,8 @@ export default function DashboardPage() {
 
       setRooms(roomsData.rooms || []);
       setResidents(residentsData.residents || []);
+
+      // ✅ FIX: backend returns `payments`
       setBills(billingData.payments || []);
     } catch (err) {
       console.error(err);
@@ -86,11 +88,6 @@ export default function DashboardPage() {
 
   const availableRooms = useMemo(
     () => rooms.filter((r) => r.status === "available").length,
-    [rooms]
-  );
-
-  const maintenanceRooms = useMemo(
-    () => rooms.filter((r) => r.status === "maintenance").length,
     [rooms]
   );
 
@@ -127,7 +124,7 @@ export default function DashboardPage() {
           <div className="grid md:grid-cols-4 gap-4">
             <Card title="TOTAL ROOMS" value={totalRooms} />
             <Card title="OCCUPIED" value={occupiedRooms} />
-            <Card title="AVAILABLE" value={availableRooms} />
+            <Card title="AVAILABLE" value={totalRooms - occupiedRooms} />
             <Card
               title="MONTHLY REVENUE"
               value={formatCurrency(billingStats.paid)}
