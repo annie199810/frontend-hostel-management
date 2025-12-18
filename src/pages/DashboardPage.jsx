@@ -6,14 +6,11 @@ import { useAuth } from "../auth/AuthProvider";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
+/* ---------- HELPERS ---------- */
 function getAuthHeaders() {
   var headers = {};
   var token = localStorage.getItem("token");
-
-  if (token) {
-    headers["Authorization"] = "Bearer " + token;
-  }
-
+  if (token) headers["Authorization"] = "Bearer " + token;
   return headers;
 }
 
@@ -22,6 +19,7 @@ function formatCurrency(amount) {
   return "₹" + amount.toLocaleString("en-IN");
 }
 
+/* ---------- COMPONENT ---------- */
 export default function DashboardPage() {
   const { user, logout } = useAuth();
   const location = useLocation();
@@ -34,10 +32,12 @@ export default function DashboardPage() {
   const [rooms, setRooms] = useState([]);
   const [residents, setResidents] = useState([]);
   const [bills, setBills] = useState([]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
+  /* ---------- LOAD DASHBOARD ---------- */
+  useEffect(function () {
     loadDashboard();
   }, []);
 
@@ -46,48 +46,74 @@ export default function DashboardPage() {
       setLoading(true);
       setError("");
 
-      const [roomsRes, residentsRes, billingRes] = await Promise.all([
-        fetch(API_BASE + "/api/rooms", { headers: getAuthHeaders() }),
-        fetch(API_BASE + "/api/residents", { headers: getAuthHeaders() }),
-        fetch(API_BASE + "/api/billing", { headers: getAuthHeaders() }),
+      const roomsReq = fetch(API_BASE + "/api/rooms", {
+        headers: getAuthHeaders(),
+      });
+      const residentsReq = fetch(API_BASE + "/api/residents", {
+        headers: getAuthHeaders(),
+      });
+      const billingReq = fetch(API_BASE + "/api/billing", {
+        headers: getAuthHeaders(),
+      });
+
+      const responses = await Promise.all([
+        roomsReq,
+        residentsReq,
+        billingReq,
       ]);
 
       if (
-        roomsRes.status === 401 ||
-        residentsRes.status === 401 ||
-        billingRes.status === 401
+        responses[0].status === 401 ||
+        responses[1].status === 401 ||
+        responses[2].status === 401
       ) {
         logout();
         navigate("/login");
         return;
       }
 
-      const roomsData = await roomsRes.json();
-      const residentsData = await residentsRes.json();
-      const billingData = await billingRes.json();
+      const roomsData = await responses[0].json();
+      const residentsData = await responses[1].json();
+      const billingData = await responses[2].json();
 
       setRooms(roomsData.rooms || []);
       setResidents(residentsData.residents || []);
-
-      // ✅ FIX: backend returns `payments`
       setBills(billingData.payments || []);
     } catch (err) {
-      console.error(err);
+      console.error("Dashboard load error:", err);
       setError("Failed to load dashboard data.");
     } finally {
       setLoading(false);
     }
   }
 
+  /* ---------- STATS ---------- */
   const totalRooms = rooms.length;
 
   const occupiedRooms = useMemo(
-    () => rooms.filter((r) => r.status === "occupied").length,
+    function () {
+      return rooms.filter(function (r) {
+        return r.status === "occupied";
+      }).length;
+    },
     [rooms]
   );
 
   const availableRooms = useMemo(
-    () => rooms.filter((r) => r.status === "available").length,
+    function () {
+      return rooms.filter(function (r) {
+        return r.status === "available";
+      }).length;
+    },
+    [rooms]
+  );
+
+  const maintenanceRooms = useMemo(
+    function () {
+      return rooms.filter(function (r) {
+        return r.status === "maintenance";
+      }).length;
+    },
     [rooms]
   );
 
@@ -95,20 +121,24 @@ export default function DashboardPage() {
     ? Math.round((occupiedRooms * 100) / totalRooms)
     : 0;
 
-  const billingStats = useMemo(() => {
-    let paid = 0;
-    let pending = 0;
+  const billingStats = useMemo(
+    function () {
+      var paid = 0;
+      var pending = 0;
 
-    bills.forEach((b) => {
-      if (b.status === "Paid") paid += b.amount;
-      else pending += b.amount;
-    });
+      bills.forEach(function (b) {
+        if (b.status === "Paid") paid += b.amount || 0;
+        else pending += b.amount || 0;
+      });
 
-    return { paid, pending };
-  }, [bills]);
+      return { paid, pending };
+    },
+    [bills]
+  );
 
+  /* ---------- UI ---------- */
   return (
-    <main className="p-6 space-y-6">
+    <main className="p-4 sm:p-6 space-y-6 bg-gray-50 min-h-screen">
       <StatusModal
         open={welcomeOpen}
         type="success"
@@ -116,24 +146,92 @@ export default function DashboardPage() {
         onClose={() => setWelcomeOpen(false)}
       />
 
-      {loading && <p>Loading dashboard…</p>}
-      {error && <p className="text-red-600">{error}</p>}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
+        <p className="text-sm text-gray-500">
+          Hostel Management Console
+        </p>
+      </div>
+
+      {loading && (
+        <p className="text-sm text-gray-500">Loading dashboard…</p>
+      )}
+
+      {error && (
+        <p className="text-sm text-red-600">{error}</p>
+      )}
 
       {!loading && !error && (
         <>
-          <div className="grid md:grid-cols-4 gap-4">
-            <Card title="TOTAL ROOMS" value={totalRooms} />
-            <Card title="OCCUPIED" value={occupiedRooms} />
-            <Card title="AVAILABLE" value={totalRooms - occupiedRooms} />
-            <Card
-              title="MONTHLY REVENUE"
-              value={formatCurrency(billingStats.paid)}
-            />
+          {/* TOP CARDS */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card>
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-blue-100 rounded-lg text-blue-600 text-xl">
+                  🏠
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500">TOTAL ROOMS</div>
+                  <div className="text-2xl font-bold">{totalRooms}</div>
+                </div>
+              </div>
+            </Card>
+
+            <Card>
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-green-100 rounded-lg text-green-600 text-xl">
+                  ✅
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500">OCCUPIED</div>
+                  <div className="text-2xl font-bold">{occupiedRooms}</div>
+                </div>
+              </div>
+            </Card>
+
+            <Card>
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-sky-100 rounded-lg text-sky-600 text-xl">
+                  🔓
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500">AVAILABLE</div>
+                  <div className="text-2xl font-bold">{availableRooms}</div>
+                </div>
+              </div>
+            </Card>
+
+            <Card>
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-fuchsia-100 rounded-lg text-fuchsia-700 text-xl">
+                  💰
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500">
+                    MONTHLY REVENUE
+                  </div>
+                  <div className="text-2xl font-bold">
+                    {formatCurrency(billingStats.paid)}
+                  </div>
+                </div>
+              </div>
+            </Card>
           </div>
 
+          {/* OCCUPANCY */}
           <Card>
-            <h3 className="font-semibold mb-2">Occupancy Rate</h3>
-            <p className="text-3xl font-bold">{occupancyRate}%</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm text-gray-500">Occupancy Rate</div>
+                <div className="text-4xl font-extrabold text-indigo-600 mt-1">
+                  {occupancyRate}%
+                </div>
+                <div className="text-xs text-gray-400 mt-1">
+                  {maintenanceRooms} rooms under maintenance
+                </div>
+              </div>
+              <div className="text-6xl">📊</div>
+            </div>
           </Card>
         </>
       )}
