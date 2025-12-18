@@ -1,47 +1,40 @@
-
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
-import StatusModal from "../components/StatusModal"; 
+import StatusModal from "../components/StatusModal";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
   const { register, user, ready, logout } = useAuth();
 
+  // form fields (shared)
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  
+  // modal state
   const [modalOpen, setModalOpen] = useState(false);
-  const [modalType, setModalType] = useState("info"); 
+  const [modalType, setModalType] = useState("info");
   const [modalMessage, setModalMessage] = useState("");
 
- 
+  // On mount: clear any login session (as you had)
   useEffect(() => {
-    try {
-      logout?.();
-    } catch (e) {}
-    try {
-      localStorage.removeItem("token");
-    } catch (e) {}
-    
+    try { logout?.(); } catch (e) {}
+    try { localStorage.removeItem("token"); } catch (e) {}
   }, []);
 
-  
   function openModal(type, message) {
     setModalType(type || "info");
     setModalMessage(message || "");
     setModalOpen(true);
   }
-
-  function handleModalClose() {
+  function closeModal() {
     setModalOpen(false);
   }
 
- 
+  // Self-register (normal users) - DO NOT send role or allow client to set role
   async function handleSelfRegister(e) {
     e.preventDefault();
     setError("");
@@ -49,26 +42,24 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-     
       const res = await register({ name, email, password }, { autoLogin: false });
 
-      
+      // remove any token if register somehow set it
       if (localStorage.getItem("token")) {
         localStorage.removeItem("token");
       }
 
       if (res && res.ok) {
         openModal("success", "You have created an account successfully.");
-       
         setName("");
         setEmail("");
         setPassword("");
 
-       
+        // close modal then redirect to login
         setTimeout(() => {
-          setModalOpen(false);
+          closeModal();
           navigate("/login", { replace: true, state: { justRegistered: true } });
-        }, 1500);
+        }, 1400);
       } else {
         const errMsg = res?.error || "Registration failed";
         setError(errMsg);
@@ -83,7 +74,7 @@ export default function RegisterPage() {
     }
   }
 
- 
+  // Admin: create user (calls /api/users). Admin decides role (Staff or Admin)
   async function createUserAsAdmin(e) {
     e.preventDefault();
     setError("");
@@ -98,7 +89,7 @@ export default function RegisterPage() {
           "Content-Type": "application/json",
           Authorization: token ? `Bearer ${token}` : "",
         },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({ name, email, password }), // admin may add role if you want
       });
 
       const data = await res.json();
@@ -117,7 +108,7 @@ export default function RegisterPage() {
     }
   }
 
- 
+  // While auth context initializes
   if (!ready) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-900/20">
@@ -126,8 +117,8 @@ export default function RegisterPage() {
     );
   }
 
- 
-  if (user && user.role && user.role !== "Administrator" && user.role !== "Admin") {
+  // If logged in but not admin -> block registration creation (for admin-only features only)
+  if (user && user.role && user.role !== "Admin" && user.role !== "Administrator") {
     return (
       <div
         className="min-h-screen flex items-center justify-center px-4"
@@ -157,8 +148,8 @@ export default function RegisterPage() {
     );
   }
 
-  
-  if (user && (user.role === "Administrator" || user.role === "Admin")) {
+  // If Admin -> show admin create user form
+  if (user && (user.role === "Admin" || user.role === "Administrator")) {
     return (
       <div
         className="min-h-screen flex items-center justify-center px-4"
@@ -171,7 +162,7 @@ export default function RegisterPage() {
             <h1 className="text-center text-xl font-semibold text-gray-800">Create user (Admin)</h1>
 
             <form onSubmit={createUserAsAdmin} className="mt-6 space-y-4" autoComplete="off">
-              
+              {/* hidden fields to prevent browser autofill */}
               <input type="text" name="fakeusernameremembered" style={{ display: "none" }} />
               <input type="password" name="fakepasswordremembered" style={{ display: "none" }} />
 
@@ -210,6 +201,7 @@ export default function RegisterPage() {
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 bg-gray-50"
                   placeholder="Choose password"
                   autoComplete="new-password"
+                  minLength={6}
                 />
               </div>
 
@@ -230,13 +222,13 @@ export default function RegisterPage() {
             <div className="text-center text-xs mt-4 text-gray-500">Admin: creating a new user will not log them in automatically.</div>
           </div>
 
-          <StatusModal open={modalOpen} type={modalType} message={modalMessage} onClose={handleModalClose} confirmLabel="OK" />
+          <StatusModal open={modalOpen} type={modalType} message={modalMessage} onClose={closeModal} confirmLabel="OK" />
         </div>
       </div>
     );
   }
 
-  
+  // Normal self-registration form
   return (
     <div
       className="min-h-screen flex items-center justify-center px-4"
@@ -249,7 +241,7 @@ export default function RegisterPage() {
           <h1 className="text-center text-xl font-semibold text-gray-800">Create an account</h1>
 
           <form onSubmit={handleSelfRegister} className="mt-6 space-y-4" autoComplete="off">
-         
+            {/* hidden fields to prevent browser autofill */}
             <input type="text" name="fakeusernameremembered" style={{ display: "none" }} />
             <input type="password" name="fakepasswordremembered" style={{ display: "none" }} />
 
@@ -310,7 +302,7 @@ export default function RegisterPage() {
         </div>
       </div>
 
-      <StatusModal open={modalOpen} type={modalType} message={modalMessage} onClose={handleModalClose} confirmLabel="OK" />
+      <StatusModal open={modalOpen} type={modalType} message={modalMessage} onClose={closeModal} confirmLabel="OK" />
     </div>
   );
 }

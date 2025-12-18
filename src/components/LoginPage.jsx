@@ -20,12 +20,8 @@ export default function LoginPage() {
 
     try {
       const res = await login({ email, password });
-
       if (res && res.ok && res.token) {
-        navigate("/", {
-          replace: true,
-          state: { justLoggedIn: true },
-        });
+        navigate("/", { replace: true, state: { justLoggedIn: true } });
       } else {
         setError(res?.error || "Invalid credentials");
       }
@@ -37,14 +33,15 @@ export default function LoginPage() {
   }
 
   function goToRegister() {
-    try { logout(); } catch (e) {}
+    try {
+      logout();
+    } catch (e) {}
     localStorage.removeItem("token");
     navigate("/register");
   }
 
   return (
     <>
-      
       <style>
         {`
           input:-webkit-autofill {
@@ -56,9 +53,7 @@ export default function LoginPage() {
 
       <div
         className="min-h-screen flex items-center justify-center px-4"
-        style={{
-          background: "linear-gradient(135deg, #4F46E5, #6366F1)", 
-        }}
+        style={{ background: "linear-gradient(135deg, #4F46E5, #6366F1)" }}
       >
         <div className="w-full max-w-md">
           <div className="bg-white rounded-2xl shadow-xl p-8">
@@ -67,12 +62,11 @@ export default function LoginPage() {
             </h1>
 
             <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-
-             
+              
               <input type="text" style={{ display: "none" }} />
               <input type="password" style={{ display: "none" }} />
 
-          
+              
               <div>
                 <label className="block text-sm text-gray-600 mb-1">Email</label>
                 <input
@@ -81,12 +75,12 @@ export default function LoginPage() {
                   autoComplete="off"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-4 py-2 rounded-lg border border-gray-300
-                             bg-white focus:ring focus:ring-indigo-200 outline-none"
+                  className="w-full px-4 py-2 rounded-lg border bg-white border-gray-300 
+                            focus:ring focus:ring-indigo-200 outline-none"
                 />
               </div>
 
-             
+              
               <div>
                 <label className="block text-sm text-gray-600 mb-1">Password</label>
                 <input
@@ -95,13 +89,12 @@ export default function LoginPage() {
                   autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="
-                    w-full px-4 py-2 rounded-lg border border-gray-300
-                    bg-white focus:ring focus:ring-indigo-200 outline-none
-                  "
+                  className="w-full px-4 py-2 rounded-lg border bg-white border-gray-300 
+                             focus:ring focus:ring-indigo-200 outline-none"
                 />
               </div>
 
+              
               <div className="flex items-center justify-between text-sm text-gray-700">
                 <label className="inline-flex items-center gap-2">
                   <input
@@ -125,6 +118,35 @@ export default function LoginPage() {
                 <div className="text-sm text-red-600 text-center">{error}</div>
               )}
 
+              
+              <div className="flex gap-2 items-center justify-between">
+                <div className="text-sm text-gray-600">Or try demo account</div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmail("admin@hostel.com");
+                      setPassword("admin123");
+                    }}
+                    className="px-3 py-1 rounded bg-indigo-600 text-white text-xs"
+                  >
+                    Use Admin
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmail("staff@hostel.com");
+                      setPassword("staff1234");
+                    }}
+                    className="px-3 py-1 rounded bg-sky-600 text-white text-xs"
+                  >
+                    Use Staff
+                  </button>
+                </div>
+              </div>
+
+              
               <button
                 type="submit"
                 disabled={loading}
@@ -145,10 +167,9 @@ export default function LoginPage() {
               </div>
             </form>
 
-             <div className="px-6 py-3 bg-white/6 border-t border-black/8 text-center text-xs text-black/70">
-            Demo: <span className="font-medium">admin@hostel.com</span> /{" "}
-            <span className="font-medium">admin123</span>
-          </div>
+            <div className="px-6 py-3 text-center text-xs text-gray-600">
+              Demo: admin@hostel.com / admin123
+            </div>
           </div>
         </div>
       </div>
