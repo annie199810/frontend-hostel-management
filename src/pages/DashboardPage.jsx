@@ -4,54 +4,32 @@ import Card from "../components/Card";
 import StatusModal from "../components/StatusModal";
 import { useAuth } from "../auth/AuthProvider";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
+const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
-function getAuthHeaders(includeJson) {
+function getAuthHeaders() {
   var headers = {};
-  var token = null;
+  var token = localStorage.getItem("token");
 
-  try {
-    token = localStorage.getItem("token");
-  } catch (e) {}
-
-  if (includeJson) {
-    headers["Content-Type"] = "application/json";
-  }
   if (token) {
     headers["Authorization"] = "Bearer " + token;
   }
+
   return headers;
 }
 
 function formatCurrency(amount) {
   if (!amount) return "₹0";
-  return "₹" + (Number(amount) || 0).toLocaleString("en-IN");
+  return "₹" + amount.toLocaleString("en-IN");
 }
 
 export default function DashboardPage() {
-  const { user } = useAuth();
-
+  const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
-  const initialWelcome =
-    (location.state && location.state.justLoggedIn) || false;
-
-  const [welcomeOpen, setWelcomeOpen] = useState(initialWelcome);
-
-  useEffect(
-    function () {
-      if (initialWelcome) {
-        navigate(location.pathname, { replace: true, state: {} });
-      }
-    },
-    [initialWelcome, location.pathname, navigate]
+  const [welcomeOpen, setWelcomeOpen] = useState(
+    location.state?.justLoggedIn || false
   );
-
-  const welcomeMessage =
-    user && user.name
-      ? "Welcome, " + user.name + "! You are now signed in."
-      : "Welcome to the dashboard!";
 
   const [rooms, setRooms] = useState([]);
   const [residents, setResidents] = useState([]);
@@ -59,111 +37,109 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(function () {
-    loadData();
+  useEffect(() => {
+    loadDashboard();
   }, []);
 
-  function loadData() {
-    setLoading(true);
-    setError("");
+  async function loadDashboard() {
+    try {
+      setLoading(true);
+      setError("");
 
-    // ❌ OLD CODE (do not delete, just commented)
-    // const roomsPromise = fetch(API_BASE + "/api/rooms").then(function (r) {
-    //   return r.json();
-    // });
+      const [roomsRes, residentsRes, billingRes] = await Promise.all([
+        fetch(API_BASE + "/api/rooms", { headers: getAuthHeaders() }),
+        fetch(API_BASE + "/api/residents", { headers: getAuthHeaders() }),
+        fetch(API_BASE + "/api/billing", { headers: getAuthHeaders() }),
+      ]);
 
-    // ✅ NEW CODE (ONLY ADDITION – Authorization header added)
-    const roomsPromise = fetch(API_BASE + "/api/rooms", {
-      method: "GET",
-      headers: getAuthHeaders(false),
-    }).then(function (r) {
-      return r.json();
-    });
+      if (
+        roomsRes.status === 401 ||
+        residentsRes.status === 401 ||
+        billingRes.status === 401
+      ) {
+        logout();
+        navigate("/login");
+        return;
+      }
 
-    const residentsPromise = fetch(API_BASE + "/api/residents", {
-      method: "GET",
-      headers: getAuthHeaders(false),
-    }).then(function (r) {
-      return r.json();
-    });
+      const roomsData = await roomsRes.json();
+      const residentsData = await residentsRes.json();
+      const billingData = await billingRes.json();
 
-    const billingPromise = fetch(API_BASE + "/api/billing", {
-      method: "GET",
-      headers: getAuthHeaders(false),
-    }).then(function (r) {
-      return r.json();
-    });
-
-    Promise.all([roomsPromise, residentsPromise, billingPromise])
-      .then(function (results) {
-        var roomsRes = results[0] || {};
-        var resRes = results[1] || {};
-        var billRes = results[2] || {};
-
-        if (!roomsRes.ok) throw new Error("Rooms API error");
-        if (!resRes.ok) throw new Error("Residents API error");
-        if (!billRes.ok) throw new Error("Billing API error");
-
-        setRooms(roomsRes.rooms || []);
-        setResidents(resRes.residents || []);
-        setBills(billRes.payments || []);
-      })
-      .catch(function (err) {
-        console.error("Dashboard load error:", err);
-        if (
-          String(err.message || "").indexOf("401") !== -1 ||
-          String(err.message || "").toLowerCase().indexOf("unauthorized") !== -1
-        ) {
-          setError("Session expired or unauthorized. Please log in again.");
-        } else {
-          setError("Failed to load dashboard data.");
-        }
-      })
-      .finally(function () {
-        setLoading(false);
-      });
+      setRooms(roomsData.rooms || []);
+      setResidents(residentsData.residents || []);
+      setBills(billingData.payments || []);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to load dashboard data.");
+    } finally {
+      setLoading(false);
+    }
   }
 
-  /* ----- BELOW CODE IS 100% UNCHANGED ----- */
+  const totalRooms = rooms.length;
 
-  var totalRooms = rooms.length;
-
-  var occupiedRooms = useMemo(
-    function () {
-      return rooms.filter(function (r) {
-        return String(r.status || "")
-          .toLowerCase()
-          .indexOf("occupied") !== -1;
-      }).length;
-    },
+  const occupiedRooms = useMemo(
+    () => rooms.filter((r) => r.status === "occupied").length,
     [rooms]
   );
 
-  var availableRooms = useMemo(
-    function () {
-      return rooms.filter(function (r) {
-        return String(r.status || "")
-          .toLowerCase()
-          .indexOf("available") !== -1;
-      }).length;
-    },
+  const availableRooms = useMemo(
+    () => rooms.filter((r) => r.status === "available").length,
     [rooms]
   );
 
-  var maintenanceRooms = useMemo(
-    function () {
-      return rooms.filter(function (r) {
-        return String(r.status || "")
-          .toLowerCase()
-          .indexOf("maintenance") !== -1;
-      }).length;
-    },
+  const maintenanceRooms = useMemo(
+    () => rooms.filter((r) => r.status === "maintenance").length,
     [rooms]
   );
 
-  var occupancyRate = totalRooms
+  const occupancyRate = totalRooms
     ? Math.round((occupiedRooms * 100) / totalRooms)
     : 0;
 
-  /* UI PART REMAINS SAME – NO CHANGE */
+  const billingStats = useMemo(() => {
+    let paid = 0;
+    let pending = 0;
+
+    bills.forEach((b) => {
+      if (b.status === "Paid") paid += b.amount;
+      else pending += b.amount;
+    });
+
+    return { paid, pending };
+  }, [bills]);
+
+  return (
+    <main className="p-6 space-y-6">
+      <StatusModal
+        open={welcomeOpen}
+        type="success"
+        message={`Welcome ${user?.name || ""}`}
+        onClose={() => setWelcomeOpen(false)}
+      />
+
+      {loading && <p>Loading dashboard…</p>}
+      {error && <p className="text-red-600">{error}</p>}
+
+      {!loading && !error && (
+        <>
+          <div className="grid md:grid-cols-4 gap-4">
+            <Card title="TOTAL ROOMS" value={totalRooms} />
+            <Card title="OCCUPIED" value={occupiedRooms} />
+            <Card title="AVAILABLE" value={availableRooms} />
+            <Card
+              title="MONTHLY REVENUE"
+              value={formatCurrency(billingStats.paid)}
+            />
+          </div>
+
+          <Card>
+            <h3 className="font-semibold mb-2">Occupancy Rate</h3>
+            <p className="text-3xl font-bold">{occupancyRate}%</p>
+          </Card>
+        </>
+      )}
+    </main>
+  );
 }
