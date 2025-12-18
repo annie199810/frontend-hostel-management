@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import Card from "../components/Card";
 import StatusModal from "../components/StatusModal";
 import { useAuth } from "../auth/AuthProvider";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
-/* ---------- HELPERS ---------- */
+/* ---------------- helpers ---------------- */
 function getAuthHeaders() {
   var headers = {};
   var token = localStorage.getItem("token");
@@ -14,16 +14,15 @@ function getAuthHeaders() {
   return headers;
 }
 
-function formatCurrency(amount) {
-  if (!amount) return "₹0";
-  return "₹" + amount.toLocaleString("en-IN");
+function formatCurrency(val) {
+  if (!val) return "₹0";
+  return "₹" + val.toLocaleString("en-IN");
 }
 
-/* ---------- COMPONENT ---------- */
+/* ---------------- component ---------------- */
 export default function DashboardPage() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
 
   const [welcomeOpen, setWelcomeOpen] = useState(
     location.state?.justLoggedIn || false
@@ -31,208 +30,221 @@ export default function DashboardPage() {
 
   const [rooms, setRooms] = useState([]);
   const [residents, setResidents] = useState([]);
-  const [bills, setBills] = useState([]);
+  const [billing, setBilling] = useState([]);
 
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
 
-  /* ---------- LOAD DASHBOARD ---------- */
-  useEffect(function () {
+  useEffect(() => {
     loadDashboard();
   }, []);
 
   async function loadDashboard() {
     try {
-      setLoading(true);
-      setError("");
-
-      const roomsReq = fetch(API_BASE + "/api/rooms", {
-        headers: getAuthHeaders(),
-      });
-      const residentsReq = fetch(API_BASE + "/api/residents", {
-        headers: getAuthHeaders(),
-      });
-      const billingReq = fetch(API_BASE + "/api/billing", {
-        headers: getAuthHeaders(),
-      });
-
-      const responses = await Promise.all([
-        roomsReq,
-        residentsReq,
-        billingReq,
+      const [r1, r2, r3] = await Promise.all([
+        fetch(API_BASE + "/api/rooms", { headers: getAuthHeaders() }),
+        fetch(API_BASE + "/api/residents", { headers: getAuthHeaders() }),
+        fetch(API_BASE + "/api/billing", { headers: getAuthHeaders() }),
       ]);
 
-      if (
-        responses[0].status === 401 ||
-        responses[1].status === 401 ||
-        responses[2].status === 401
-      ) {
-        logout();
-        navigate("/login");
-        return;
-      }
+      const d1 = await r1.json();
+      const d2 = await r2.json();
+      const d3 = await r3.json();
 
-      const roomsData = await responses[0].json();
-      const residentsData = await responses[1].json();
-      const billingData = await responses[2].json();
-
-      setRooms(roomsData.rooms || []);
-      setResidents(residentsData.residents || []);
-      setBills(billingData.payments || []);
-    } catch (err) {
-      console.error("Dashboard load error:", err);
-      setError("Failed to load dashboard data.");
+      setRooms(d1.rooms || []);
+      setResidents(d2.residents || []);
+      setBilling(d3.payments || []);
+    } catch (e) {
+      console.error(e);
     } finally {
       setLoading(false);
     }
   }
 
-  /* ---------- STATS ---------- */
+  /* ---------------- stats ---------------- */
   const totalRooms = rooms.length;
-
-  const occupiedRooms = useMemo(
-    function () {
-      return rooms.filter(function (r) {
-        return r.status === "occupied";
-      }).length;
-    },
-    [rooms]
-  );
-
-  const availableRooms = useMemo(
-    function () {
-      return rooms.filter(function (r) {
-        return r.status === "available";
-      }).length;
-    },
-    [rooms]
-  );
-
-  const maintenanceRooms = useMemo(
-    function () {
-      return rooms.filter(function (r) {
-        return r.status === "maintenance";
-      }).length;
-    },
-    [rooms]
-  );
-
+  const occupied = rooms.filter(r => r.status === "occupied").length;
+  const available = rooms.filter(r => r.status === "available").length;
   const occupancyRate = totalRooms
-    ? Math.round((occupiedRooms * 100) / totalRooms)
+    ? Math.round((occupied * 100) / totalRooms)
     : 0;
 
-  const billingStats = useMemo(
-    function () {
-      var paid = 0;
-      var pending = 0;
-
-      bills.forEach(function (b) {
-        if (b.status === "Paid") paid += b.amount || 0;
-        else pending += b.amount || 0;
-      });
-
-      return { paid, pending };
-    },
-    [bills]
+  const revenue = billing.reduce(
+    (sum, b) => (b.status === "Paid" ? sum + (b.amount || 0) : sum),
+    0
   );
 
-  /* ---------- UI ---------- */
+  const recentResidents = [...residents]
+    .sort((a, b) => (b.checkIn || "").localeCompare(a.checkIn || ""))
+    .slice(0, 5);
+
+  /* ---------------- donut ---------------- */
+  const radius = 90;
+  const stroke = 14;
+  const circumference = 2 * Math.PI * radius;
+  const progress = (occupancyRate / 100) * circumference;
+
+  /* ---------------- UI ---------------- */
   return (
-    <main className="p-4 sm:p-6 space-y-6 bg-gray-50 min-h-screen">
+    <main className="p-6 space-y-6 bg-gray-50 min-h-screen">
       <StatusModal
         open={welcomeOpen}
         type="success"
-        message={`Welcome ${user?.name || ""}`}
+        message={`Welcome ${user?.name || "Admin"}`}
         onClose={() => setWelcomeOpen(false)}
       />
 
       <div>
-        <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
+        <h1 className="text-2xl font-bold">Dashboard</h1>
         <p className="text-sm text-gray-500">
-          Hostel Management Console
+          Here’s an overview of your hostel today.
         </p>
       </div>
 
-      {loading && (
-        <p className="text-sm text-gray-500">Loading dashboard…</p>
-      )}
-
-      {error && (
-        <p className="text-sm text-red-600">{error}</p>
-      )}
-
-      {!loading && !error && (
+      {loading ? (
+        <p className="text-sm text-gray-500">Loading…</p>
+      ) : (
         <>
           {/* TOP CARDS */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card>
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-blue-100 rounded-lg text-blue-600 text-xl">
-                  🏠
-                </div>
+              <div className="flex gap-4 items-center">
+                <div className="p-3 rounded-xl bg-blue-100 text-xl">🏠</div>
                 <div>
-                  <div className="text-xs text-gray-500">TOTAL ROOMS</div>
-                  <div className="text-2xl font-bold">{totalRooms}</div>
+                  <p className="text-xs text-gray-500">TOTAL ROOMS</p>
+                  <p className="text-2xl font-bold">{totalRooms}</p>
+                  <p className="text-xs text-gray-400">
+                    {occupied} occupied • {available} available
+                  </p>
                 </div>
               </div>
             </Card>
 
             <Card>
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-green-100 rounded-lg text-green-600 text-xl">
-                  ✅
-                </div>
+              <div className="flex gap-4 items-center">
+                <div className="p-3 rounded-xl bg-green-100 text-xl">✅</div>
                 <div>
-                  <div className="text-xs text-gray-500">OCCUPIED</div>
-                  <div className="text-2xl font-bold">{occupiedRooms}</div>
+                  <p className="text-xs text-gray-500">OCCUPIED</p>
+                  <p className="text-2xl font-bold">{occupied}</p>
+                  <p className="text-xs text-gray-400">
+                    {occupancyRate}% occupancy
+                  </p>
                 </div>
               </div>
             </Card>
 
             <Card>
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-sky-100 rounded-lg text-sky-600 text-xl">
-                  🔓
-                </div>
+              <div className="flex gap-4 items-center">
+                <div className="p-3 rounded-xl bg-sky-100 text-xl">🔓</div>
                 <div>
-                  <div className="text-xs text-gray-500">AVAILABLE</div>
-                  <div className="text-2xl font-bold">{availableRooms}</div>
+                  <p className="text-xs text-gray-500">AVAILABLE</p>
+                  <p className="text-2xl font-bold">{available}</p>
+                  <p className="text-xs text-gray-400">0 maintenance</p>
                 </div>
               </div>
             </Card>
 
             <Card>
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-fuchsia-100 rounded-lg text-fuchsia-700 text-xl">
-                  💰
-                </div>
+              <div className="flex gap-4 items-center">
+                <div className="p-3 rounded-xl bg-fuchsia-100 text-xl">💰</div>
                 <div>
-                  <div className="text-xs text-gray-500">
-                    MONTHLY REVENUE
-                  </div>
-                  <div className="text-2xl font-bold">
-                    {formatCurrency(billingStats.paid)}
-                  </div>
+                  <p className="text-xs text-gray-500">MONTHLY REVENUE</p>
+                  <p className="text-2xl font-bold text-fuchsia-700">
+                    {formatCurrency(revenue)}
+                  </p>
                 </div>
               </div>
             </Card>
           </div>
 
-          {/* OCCUPANCY */}
-          <Card>
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm text-gray-500">Occupancy Rate</div>
-                <div className="text-4xl font-extrabold text-indigo-600 mt-1">
-                  {occupancyRate}%
+          {/* BOTTOM SECTION */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* RECENT ACTIVITIES */}
+            <Card>
+              <div className="flex justify-between mb-3">
+                <h3 className="font-semibold">Recent Activities</h3>
+                <span className="text-xs text-gray-400">
+                  {recentResidents.length} items
+                </span>
+              </div>
+
+              {recentResidents.map(r => (
+                <div
+                  key={r._id}
+                  className="flex justify-between items-center py-2"
+                >
+                  <div className="flex gap-3 items-center">
+                    <div className="p-2 rounded-full bg-blue-50">🙂</div>
+                    <div>
+                      <p className="text-sm font-medium">{r.name}</p>
+                      <p className="text-xs text-gray-400">
+                        Room {r.roomNumber} • Active
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    {r.checkIn || "—"}
+                  </p>
                 </div>
-                <div className="text-xs text-gray-400 mt-1">
-                  {maintenanceRooms} rooms under maintenance
+              ))}
+            </Card>
+
+            {/* OCCUPANCY DONUT */}
+            <Card>
+              <h3 className="font-semibold mb-4">Occupancy Rate</h3>
+
+              <div className="flex items-center gap-6">
+                <svg width="220" height="220">
+                  <circle
+                    cx="110"
+                    cy="110"
+                    r={radius}
+                    stroke="#e5e7eb"
+                    strokeWidth={stroke}
+                    fill="none"
+                  />
+                  <circle
+                    cx="110"
+                    cy="110"
+                    r={radius}
+                    stroke="#10b981"
+                    strokeWidth={stroke}
+                    fill="none"
+                    strokeDasharray={`${progress} ${
+                      circumference - progress
+                    }`}
+                    transform="rotate(-90 110 110)"
+                  />
+                  <text
+                    x="110"
+                    y="115"
+                    textAnchor="middle"
+                    fontSize="32"
+                    fontWeight="700"
+                  >
+                    {occupancyRate}%
+                  </text>
+                  <text
+                    x="110"
+                    y="140"
+                    textAnchor="middle"
+                    fontSize="12"
+                    fill="#6b7280"
+                  >
+                    occupied
+                  </text>
+                </svg>
+
+                <div className="space-y-2 text-sm">
+                  <p>🟢 Occupied: {occupied}</p>
+                  <p>🔵 Available: {available}</p>
+                  <p>🟠 Maintenance: 0</p>
+                  <p className="text-xs text-gray-400">
+                    Total rooms: {totalRooms}
+                  </p>
                 </div>
               </div>
-              <div className="text-6xl">📊</div>
-            </div>
-          </Card>
+            </Card>
+          </div>
         </>
       )}
     </main>
