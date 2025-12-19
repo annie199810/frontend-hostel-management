@@ -1,195 +1,203 @@
 import React, { useEffect, useMemo, useState } from "react";
-import Card from "../components/Card";
-import StatusModal from "../components/StatusModal";
 
-var API_BASE = import.meta.env.VITE_API_BASE_URL || "";
+const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
-console.log("API_BASE =", API_BASE);
-
-/* ---------------- AUTH HEADERS ---------------- */
-function getAuthHeaders(includeJson) {
+/* ===================== HELPERS ===================== */
+function getAuthHeaders() {
   var headers = {};
-  var token = null;
-
-  try {
-    token = localStorage.getItem("token");
-  } catch (e) {
-    console.error("Token read error", e);
-  }
-
-  if (includeJson) {
-    headers["Content-Type"] = "application/json";
-  }
-
-  if (token) {
-    headers["Authorization"] = "Bearer " + token;
-  }
-
-  console.log("Request headers:", headers);
+  var token = localStorage.getItem("token");
+  if (token) headers.Authorization = "Bearer " + token;
   return headers;
 }
 
-/* ---------------- STATUS BADGE ---------------- */
-function RoomStatusBadge(props) {
-  var v = (props.value || "").toLowerCase();
-
-  var map = {
-    available: "bg-emerald-50 text-emerald-700",
-    occupied: "bg-sky-50 text-sky-700",
-    maintenance: "bg-amber-50 text-amber-700",
-  };
+function StatusBadge({ value }) {
+  var v = (value || "").toLowerCase();
+  var cls =
+    v === "occupied"
+      ? "bg-sky-100 text-sky-700"
+      : v === "available"
+      ? "bg-emerald-100 text-emerald-700"
+      : "bg-gray-100 text-gray-600";
 
   return (
-    <span className={"px-2 py-0.5 rounded-full text-xs " + (map[v] || "")}>
-      {props.value || "-"}
+    <span className={`px-3 py-1 rounded-full text-xs font-medium ${cls}`}>
+      {value}
     </span>
   );
 }
 
-/* ---------------- PAGE ---------------- */
+/* ===================== PAGE ===================== */
 export default function RoomPage() {
-  const [rooms, setRooms] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  var [rooms, setRooms] = useState([]);
+  var [loading, setLoading] = useState(true);
+  var [error, setError] = useState("");
 
-  const [statusOpen, setStatusOpen] = useState(false);
-  const [statusType, setStatusType] = useState("success");
-  const [statusMessage, setStatusMessage] = useState("");
+  var [search, setSearch] = useState("");
+  var [typeFilter, setTypeFilter] = useState("all");
+  var [statusFilter, setStatusFilter] = useState("all");
 
-  /* ---------------- LOAD ROOMS ---------------- */
-  function loadRooms() {
-    console.log("📡 loadRooms() called");
-
-    setLoading(true);
-    setError("");
-
+  /* ===================== LOAD ROOMS ===================== */
+  useEffect(function () {
+    console.log("📦 Loading rooms...");
     fetch(API_BASE + "/api/rooms", {
-      method: "GET",
-      headers: {
-        ...getAuthHeaders(false),
-        "Cache-Control": "no-cache",
-      },
+      headers: getAuthHeaders(),
     })
-      .then((res) => {
-        console.log("➡️ Rooms API status:", res.status);
-        console.log("➡️ Response headers:", [...res.headers.entries()]);
-
-        if (res.status === 304) {
-          console.warn("⚠️ 304 received – no response body");
-          return null;
-        }
-
+      .then(function (res) {
+        console.log("📡 Rooms response status:", res.status);
         return res.json();
       })
-      .then((data) => {
-        console.log("📦 Rooms API response:", data);
-
-        if (!data) {
-          console.warn("⚠️ No data returned from API");
-          setRooms([]);
-          return;
-        }
-
-        if (Array.isArray(data)) {
-          console.log("✅ Rooms array length:", data.length);
-          setRooms(data);
-        } else if (data.rooms) {
-          console.log("✅ Rooms from data.rooms:", data.rooms.length);
-          setRooms(data.rooms);
+      .then(function (data) {
+        console.log("✅ Rooms API data:", data);
+        if (data && data.ok) {
+          setRooms(data.rooms || []);
         } else {
-          console.error("❌ Unexpected response format:", data);
-          setError("Invalid rooms response");
+          setError("Failed to load rooms");
         }
       })
-      .catch((err) => {
-        console.error("❌ Fetch rooms failed:", err);
-        setError("Failed to load rooms");
+      .catch(function (err) {
+        console.error("❌ Rooms fetch error:", err);
+        setError("Server not reachable");
       })
-      .finally(() => {
-        console.log("🏁 loadRooms() finished");
+      .finally(function () {
         setLoading(false);
       });
-  }
-
-  /* ---------------- EFFECT ---------------- */
-  useEffect(() => {
-    console.log("🚀 RoomPage mounted");
-    loadRooms();
   }, []);
 
-  /* ---------------- FILTER ---------------- */
-  const filteredRooms = useMemo(() => {
-    console.log("🔄 Filtering rooms", rooms.length);
-    return rooms;
-  }, [rooms]);
+  /* ===================== FILTER ===================== */
+  var filteredRooms = useMemo(
+    function () {
+      return rooms.filter(function (r) {
+        var matchSearch =
+          !search ||
+          r.number.toLowerCase().includes(search.toLowerCase()) ||
+          r.type.toLowerCase().includes(search.toLowerCase());
 
-  /* ---------------- UI ---------------- */
+        var matchType =
+          typeFilter === "all" || r.type.toLowerCase() === typeFilter;
+
+        var matchStatus =
+          statusFilter === "all" || r.status.toLowerCase() === statusFilter;
+
+        return matchSearch && matchType && matchStatus;
+      });
+    },
+    [rooms, search, typeFilter, statusFilter]
+  );
+
+  /* ===================== UI ===================== */
   return (
-    <>
-      <StatusModal
-        open={statusOpen}
-        type={statusType}
-        message={statusMessage}
-        onClose={() => setStatusOpen(false)}
-      />
+    <main className="p-6 space-y-6">
+      {/* HEADER */}
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-gray-600">
+          Manage room inventory, availability and monthly pricing.
+        </p>
+        <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
+          + Add New Room
+        </button>
+      </div>
 
-      <main className="p-6 space-y-6">
-        <div className="flex justify-between items-center">
-          <p className="text-sm text-gray-600">
-            Manage room inventory, availability and pricing.
-          </p>
-          <button className="px-4 py-2 bg-blue-600 text-white rounded">
-            + Add New Room
-          </button>
+      {/* SEARCH + FILTER */}
+      <div className="bg-white rounded-xl p-4 shadow space-y-4">
+        <div className="flex flex-wrap gap-3">
+          <input
+            type="text"
+            placeholder="Search by room number or type..."
+            className="border px-3 py-2 rounded text-sm flex-1 min-w-[220px]"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+
+          <select
+            className="border px-3 py-2 rounded text-sm"
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+          >
+            <option value="all">All Types</option>
+            <option value="single">Single</option>
+            <option value="double">Double</option>
+          </select>
+
+          <select
+            className="border px-3 py-2 rounded text-sm"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="all">All Status</option>
+            <option value="occupied">Occupied</option>
+            <option value="available">Available</option>
+          </select>
         </div>
 
-        <Card>
-          {loading && (
-            <div className="text-sm text-gray-500">Loading rooms…</div>
-          )}
+        {/* TABLE */}
+        {loading && (
+          <p className="text-sm text-gray-500">Loading rooms…</p>
+        )}
 
-          {!loading && error && (
-            <div className="text-sm text-red-600">{error}</div>
-          )}
+        {error && <p className="text-sm text-red-600">{error}</p>}
 
-          {!loading && !error && (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm border">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-3 py-2 text-left">Room</th>
-                    <th className="px-3 py-2 text-left">Type</th>
-                    <th className="px-3 py-2 text-left">Status</th>
-                    <th className="px-3 py-2 text-right">Price</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredRooms.length === 0 && (
-                    <tr>
-                      <td colSpan="4" className="text-center py-4">
-                        No rooms found
-                      </td>
-                    </tr>
-                  )}
+        {!loading && !error && (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm border-t">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 py-2 text-left">Room No</th>
+                  <th className="px-3 py-2 text-left">Type</th>
+                  <th className="px-3 py-2 text-left">Status</th>
+                  <th className="px-3 py-2 text-right">Price / Month</th>
+                  <th className="px-3 py-2 text-center">Occupants</th>
+                  <th className="px-3 py-2 text-left">Created At</th>
+                  <th className="px-3 py-2 text-right">Actions</th>
+                </tr>
+              </thead>
 
-                  {filteredRooms.map((r) => (
+              <tbody>
+                {filteredRooms.map(function (r) {
+                  return (
                     <tr key={r._id} className="border-t">
                       <td className="px-3 py-2">{r.number}</td>
-                      <td className="px-3 py-2">{r.type}</td>
+                      <td className="px-3 py-2 capitalize">{r.type}</td>
                       <td className="px-3 py-2">
-                        <RoomStatusBadge value={r.status} />
+                        <StatusBadge value={r.status} />
                       </td>
                       <td className="px-3 py-2 text-right">
-                        ₹{r.pricePerMonth}
+                        ₹{r.pricePerMonth?.toLocaleString("en-IN")}
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        {r.occupants?.length || 0}
+                      </td>
+                      <td className="px-3 py-2 text-gray-600">
+                        {r.createdAt
+                          ? new Date(r.createdAt).toLocaleDateString()
+                          : "—"}
+                      </td>
+                      <td className="px-3 py-2 text-right space-x-2">
+                        <button className="text-blue-600 text-xs hover:underline">
+                          Edit
+                        </button>
+                        <button className="text-red-600 text-xs hover:underline">
+                          Delete
+                        </button>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Card>
-      </main>
-    </>
+                  );
+                })}
+
+                {filteredRooms.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan="7"
+                      className="text-center py-4 text-gray-500"
+                    >
+                      No rooms found
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </main>
   );
 }
