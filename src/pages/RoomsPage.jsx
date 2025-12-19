@@ -1,167 +1,199 @@
 import React, { useEffect, useMemo, useState } from "react";
+import Card from "../components/Card";
+import StatusModal from "../components/StatusModal";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
-/* ===================== HELPERS ===================== */
-function getAuthHeaders() {
+/* ---------------- AUTH HEADERS ---------------- */
+function getAuthHeaders(includeJson) {
   var headers = {};
   var token = localStorage.getItem("token");
-  if (token) headers.Authorization = "Bearer " + token;
+
+  if (includeJson) headers["Content-Type"] = "application/json";
+  if (token) headers["Authorization"] = "Bearer " + token;
+
   return headers;
 }
 
-function StatusBadge({ value }) {
+/* ---------------- STATUS BADGE ---------------- */
+function RoomStatusBadge({ value }) {
   var v = (value || "").toLowerCase();
-  var cls =
-    v === "occupied"
-      ? "bg-sky-100 text-sky-700"
-      : v === "available"
-      ? "bg-emerald-100 text-emerald-700"
-      : "bg-gray-100 text-gray-600";
+
+  var map = {
+    available: "bg-green-100 text-green-700",
+    occupied: "bg-blue-100 text-blue-700",
+    maintenance: "bg-yellow-100 text-yellow-700",
+  };
 
   return (
-    <span className={`px-3 py-1 rounded-full text-xs font-medium ${cls}`}>
+    <span className={`px-2 py-1 rounded-full text-xs font-medium ${map[v]}`}>
       {value}
     </span>
   );
 }
 
-/* ===================== PAGE ===================== */
+/* ================= ROOM PAGE ================= */
 export default function RoomPage() {
-  var [rooms, setRooms] = useState([]);
-  var [loading, setLoading] = useState(true);
-  var [error, setError] = useState("");
+  const [rooms, setRooms] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  var [search, setSearch] = useState("");
-  var [typeFilter, setTypeFilter] = useState("all");
-  var [statusFilter, setStatusFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
 
-  /* ===================== LOAD ROOMS ===================== */
-  useEffect(function () {
-    console.log("📦 Loading rooms...");
+  const [statusOpen, setStatusOpen] = useState(false);
+  const [statusType, setStatusType] = useState("success");
+  const [statusMessage, setStatusMessage] = useState("");
+
+  function showStatus(type, message) {
+    setStatusType(type);
+    setStatusMessage(message);
+    setStatusOpen(true);
+  }
+
+  /* ---------------- LOAD ROOMS ---------------- */
+  useEffect(() => {
+    loadRooms();
+  }, []);
+
+  function loadRooms() {
+    console.log("🔄 Loading rooms...");
+    setLoading(true);
+    setError("");
+
     fetch(API_BASE + "/api/rooms", {
-      headers: getAuthHeaders(),
+      method: "GET",
+      headers: getAuthHeaders(false),
     })
-      .then(function (res) {
+      .then((res) => {
         console.log("📡 Rooms response status:", res.status);
         return res.json();
       })
-      .then(function (data) {
-        console.log("✅ Rooms API data:", data);
-        if (data && data.ok) {
-          setRooms(data.rooms || []);
+      .then((data) => {
+        console.log("📦 Rooms API data:", data);
+
+        // ✅ FIX: check rooms array directly
+        if (data && Array.isArray(data.rooms)) {
+          setRooms(data.rooms);
+          console.log("✅ Rooms set in state:", data.rooms.length);
         } else {
+          console.error("❌ Invalid rooms response format");
           setError("Failed to load rooms");
         }
       })
-      .catch(function (err) {
-        console.error("❌ Rooms fetch error:", err);
-        setError("Server not reachable");
+      .catch((err) => {
+        console.error("❌ Fetch error:", err);
+        setError("Cannot reach server");
       })
-      .finally(function () {
+      .finally(() => {
         setLoading(false);
       });
-  }, []);
+  }
 
-  /* ===================== FILTER ===================== */
-  var filteredRooms = useMemo(
-    function () {
-      return rooms.filter(function (r) {
-        var matchSearch =
-          !search ||
-          r.number.toLowerCase().includes(search.toLowerCase()) ||
-          r.type.toLowerCase().includes(search.toLowerCase());
+  /* ---------------- FILTER ---------------- */
+  const filteredRooms = useMemo(() => {
+    return rooms.filter((r) => {
+      const matchSearch =
+        !search ||
+        r.number.toLowerCase().includes(search.toLowerCase()) ||
+        r.type.toLowerCase().includes(search.toLowerCase());
 
-        var matchType =
-          typeFilter === "all" || r.type.toLowerCase() === typeFilter;
+      const matchType =
+        typeFilter === "all" || r.type === typeFilter;
 
-        var matchStatus =
-          statusFilter === "all" || r.status.toLowerCase() === statusFilter;
+      const matchStatus =
+        statusFilter === "all" || r.status === statusFilter;
 
-        return matchSearch && matchType && matchStatus;
-      });
-    },
-    [rooms, search, typeFilter, statusFilter]
-  );
+      return matchSearch && matchType && matchStatus;
+    });
+  }, [rooms, search, typeFilter, statusFilter]);
 
-  /* ===================== UI ===================== */
+  /* ================= UI ================= */
   return (
-    <main className="p-6 space-y-6">
-      {/* HEADER */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-600">
-          Manage room inventory, availability and monthly pricing.
-        </p>
-        <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
-          + Add New Room
-        </button>
-      </div>
+    <>
+      <StatusModal
+        open={statusOpen}
+        type={statusType}
+        message={statusMessage}
+        onClose={() => setStatusOpen(false)}
+      />
 
-      {/* SEARCH + FILTER */}
-      <div className="bg-white rounded-xl p-4 shadow space-y-4">
-        <div className="flex flex-wrap gap-3">
-          <input
-            type="text"
-            placeholder="Search by room number or type..."
-            className="border px-3 py-2 rounded text-sm flex-1 min-w-[220px]"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-
-          <select
-            className="border px-3 py-2 rounded text-sm"
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-          >
-            <option value="all">All Types</option>
-            <option value="single">Single</option>
-            <option value="double">Double</option>
-          </select>
-
-          <select
-            className="border px-3 py-2 rounded text-sm"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            <option value="all">All Status</option>
-            <option value="occupied">Occupied</option>
-            <option value="available">Available</option>
-          </select>
+      <main className="p-6 space-y-6">
+        <div className="flex justify-between items-center">
+          <p className="text-gray-600">
+            Manage room inventory, availability and monthly pricing.
+          </p>
+          <button className="px-4 py-2 bg-blue-600 text-white rounded-lg">
+            + Add New Room
+          </button>
         </div>
 
-        {/* TABLE */}
-        {loading && (
-          <p className="text-sm text-gray-500">Loading rooms…</p>
-        )}
+        <Card>
+          <div className="flex gap-3 flex-wrap mb-4">
+            <input
+              type="text"
+              placeholder="Search by room number or type..."
+              className="border px-3 py-2 rounded text-sm flex-1"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+            <select
+              className="border px-3 py-2 rounded text-sm"
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+            >
+              <option value="all">All Types</option>
+              <option value="single">Single</option>
+              <option value="double">Double</option>
+              <option value="dorm">Dorm</option>
+            </select>
 
-        {!loading && !error && (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm border-t">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-3 py-2 text-left">Room No</th>
-                  <th className="px-3 py-2 text-left">Type</th>
-                  <th className="px-3 py-2 text-left">Status</th>
-                  <th className="px-3 py-2 text-right">Price / Month</th>
-                  <th className="px-3 py-2 text-center">Occupants</th>
-                  <th className="px-3 py-2 text-left">Created At</th>
-                  <th className="px-3 py-2 text-right">Actions</th>
-                </tr>
-              </thead>
+            <select
+              className="border px-3 py-2 rounded text-sm"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="all">All Status</option>
+              <option value="available">Available</option>
+              <option value="occupied">Occupied</option>
+              <option value="maintenance">Maintenance</option>
+            </select>
+          </div>
 
-              <tbody>
-                {filteredRooms.map(function (r) {
-                  return (
+          {loading && (
+            <p className="text-gray-500 text-sm">Loading rooms…</p>
+          )}
+
+          {!loading && error && (
+            <p className="text-red-600 text-sm">{error}</p>
+          )}
+
+          {!loading && !error && (
+            <div className="overflow-x-auto">
+              <table className="min-w-full border-t text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Room No</th>
+                    <th className="px-3 py-2 text-left">Type</th>
+                    <th className="px-3 py-2 text-left">Status</th>
+                    <th className="px-3 py-2 text-right">Price / Month</th>
+                    <th className="px-3 py-2 text-center">Occupants</th>
+                    <th className="px-3 py-2 text-left">Created At</th>
+                    <th className="px-3 py-2 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRooms.map((r) => (
                     <tr key={r._id} className="border-t">
                       <td className="px-3 py-2">{r.number}</td>
                       <td className="px-3 py-2 capitalize">{r.type}</td>
                       <td className="px-3 py-2">
-                        <StatusBadge value={r.status} />
+                        <RoomStatusBadge value={r.status} />
                       </td>
                       <td className="px-3 py-2 text-right">
-                        ₹{r.pricePerMonth?.toLocaleString("en-IN")}
+                        ₹{r.pricePerMonth.toLocaleString("en-IN")}
                       </td>
                       <td className="px-3 py-2 text-center">
                         {r.occupants?.length || 0}
@@ -172,32 +204,17 @@ export default function RoomPage() {
                           : "—"}
                       </td>
                       <td className="px-3 py-2 text-right space-x-2">
-                        <button className="text-blue-600 text-xs hover:underline">
-                          Edit
-                        </button>
-                        <button className="text-red-600 text-xs hover:underline">
-                          Delete
-                        </button>
+                        <button className="text-blue-600 text-xs">Edit</button>
+                        <button className="text-red-600 text-xs">Delete</button>
                       </td>
                     </tr>
-                  );
-                })}
-
-                {filteredRooms.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan="7"
-                      className="text-center py-4 text-gray-500"
-                    >
-                      No rooms found
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </main>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      </main>
+    </>
   );
 }
