@@ -4,7 +4,8 @@ import StatusModal from "../components/StatusModal";
 
 var API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
-/* -------------------- helpers -------------------- */
+/* ------------------ HELPERS ------------------ */
+
 function getAuthHeaders(includeJson) {
   var headers = {};
   var token = null;
@@ -19,7 +20,6 @@ function getAuthHeaders(includeJson) {
   return headers;
 }
 
-/* -------------------- badge -------------------- */
 function RoomStatusBadge(props) {
   var v = (props.value || "").toLowerCase();
 
@@ -38,16 +38,17 @@ function RoomStatusBadge(props) {
   );
 }
 
-/* -------------------- confirm delete modal -------------------- */
+/* ------------------ DELETE CONFIRM ------------------ */
+
 function ConfirmModal(props) {
   if (!props.open) return null;
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center modal-backdrop">
-      <div className="bg-white w-full max-w-sm rounded-xl shadow-lg p-6 text-center">
+      <div className="bg-white w-full max-w-sm rounded-xl shadow-xl p-6 text-center">
         <div className="text-red-600 text-4xl mb-3">⚠</div>
         <h2 className="text-lg font-semibold mb-2">Delete Room</h2>
-        <p className="text-gray-600 mb-5">{props.message}</p>
+        <p className="text-sm text-gray-600 mb-5">{props.message}</p>
 
         <div className="flex justify-center gap-3">
           <button
@@ -68,8 +69,9 @@ function ConfirmModal(props) {
   );
 }
 
-/* -------------------- main page -------------------- */
-export default function RoomManagementPage() {
+/* ================== MAIN PAGE ================== */
+
+export default function RoomPage() {
   var [rooms, setRooms] = useState([]);
   var [loading, setLoading] = useState(true);
   var [error, setError] = useState("");
@@ -84,6 +86,7 @@ export default function RoomManagementPage() {
     _id: null,
     number: "",
     type: "single",
+    acType: "non-ac",
     status: "available",
     pricePerMonth: "",
   });
@@ -95,13 +98,14 @@ export default function RoomManagementPage() {
   var [deleteOpen, setDeleteOpen] = useState(false);
   var [roomToDelete, setRoomToDelete] = useState(null);
 
-  function showStatus(type, message) {
+  function showStatus(type, msg) {
     setStatusType(type);
-    setStatusMessage(message);
+    setStatusMessage(msg);
     setStatusOpen(true);
   }
 
-  /* -------------------- load rooms -------------------- */
+  /* ------------------ LOAD ROOMS ------------------ */
+
   useEffect(function () {
     loadRooms();
   }, []);
@@ -113,54 +117,45 @@ export default function RoomManagementPage() {
     fetch(API_BASE + "/api/rooms", {
       headers: getAuthHeaders(false),
     })
-      .then(function (res) {
-        return res.json();
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.ok) setRooms(data.rooms || []);
+        else setError(data.error || "Failed to load rooms");
       })
-      .then(function (data) {
-        // SAFE handling (no false error)
-        if (Array.isArray(data.rooms)) {
-          setRooms(data.rooms);
-        } else {
-          setRooms([]);
-        }
-      })
-      .catch(function () {
-        setError("Unable to load rooms.");
-      })
-      .finally(function () {
-        setLoading(false);
-      });
+      .catch(() => setError("Server not reachable"))
+      .finally(() => setLoading(false));
   }
 
-  /* -------------------- filter -------------------- */
+  /* ------------------ FILTER ------------------ */
+
   var filteredRooms = useMemo(function () {
-    var text = (search || "").toLowerCase();
+    var t = search.toLowerCase();
 
     return rooms.filter(function (r) {
       var matchText =
-        !text ||
-        (r.number || "").toLowerCase().includes(text) ||
-        (r.type || "").toLowerCase().includes(text);
+        !t ||
+        (r.number || "").toLowerCase().includes(t) ||
+        (r.type || "").toLowerCase().includes(t);
 
       var matchStatus =
-        statusFilter === "all" ||
-        (r.status || "").toLowerCase() === statusFilter;
+        statusFilter === "all" || r.status === statusFilter;
 
       var matchType =
-        typeFilter === "all" ||
-        (r.type || "").toLowerCase() === typeFilter;
+        typeFilter === "all" || r.type === typeFilter;
 
       return matchText && matchStatus && matchType;
     });
   }, [rooms, search, statusFilter, typeFilter]);
 
-  /* -------------------- form -------------------- */
+  /* ------------------ FORM ------------------ */
+
   function openAddForm() {
     setFormMode("add");
     setFormData({
       _id: null,
       number: "",
       type: "single",
+      acType: "non-ac",
       status: "available",
       pricePerMonth: "",
     });
@@ -171,31 +166,31 @@ export default function RoomManagementPage() {
     setFormMode("edit");
     setFormData({
       _id: row._id,
-      number: row.number,
-      type: row.type,
-      status: row.status,
+      number: row.number || "",
+      type: row.type || "single",
+      acType: row.acType || "non-ac",
+      status: row.status || "available",
       pricePerMonth: String(row.pricePerMonth || ""),
     });
     setShowForm(true);
   }
 
-  function handleFormChange(field, value) {
-    setFormData(function (prev) {
-      return { ...prev, [field]: value };
-    });
+  function handleChange(field, value) {
+    setFormData((p) => ({ ...p, [field]: value }));
   }
 
-  function handleFormSubmit(e) {
+  function submitForm(e) {
     e.preventDefault();
 
-    if (!formData.number || formData.pricePerMonth === "") {
-      showStatus("error", "Room number and price are required.");
+    if (!formData.number || !formData.pricePerMonth) {
+      showStatus("error", "All fields are required");
       return;
     }
 
     var payload = {
       number: formData.number,
       type: formData.type,
+      acType: formData.acType,
       status: formData.status,
       pricePerMonth: Number(formData.pricePerMonth),
     };
@@ -208,57 +203,48 @@ export default function RoomManagementPage() {
     var method = formMode === "add" ? "POST" : "PUT";
 
     fetch(url, {
-      method: method,
+      method,
       headers: getAuthHeaders(true),
       body: JSON.stringify(payload),
     })
-      .then(function (res) {
-        return res.json();
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.ok) {
+          setShowForm(false);
+          loadRooms();
+          showStatus("success", "Room saved successfully");
+        } else showStatus("error", data.error || "Failed");
       })
-      .then(function () {
-        setShowForm(false);
-        loadRooms();
-        showStatus(
-          "success",
-          formMode === "add"
-            ? "Room created successfully."
-            : "Room updated successfully."
-        );
-      })
-      .catch(function () {
-        showStatus("error", "Failed to save room.");
-      });
+      .catch(() => showStatus("error", "Server error"));
   }
 
-  /* -------------------- delete -------------------- */
-  function handleDelete(row) {
+  /* ------------------ DELETE ------------------ */
+
+  function confirmDelete(row) {
     setRoomToDelete(row);
     setDeleteOpen(true);
   }
 
-  function confirmDelete() {
+  function deleteRoom() {
     fetch(API_BASE + "/api/rooms/" + roomToDelete._id, {
       method: "DELETE",
       headers: getAuthHeaders(false),
     })
-      .then(function () {
-        setRooms(function (prev) {
-          return prev.filter(function (r) {
-            return r._id !== roomToDelete._id;
-          });
-        });
-        showStatus("success", "Room deleted.");
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.ok) {
+          setRooms((p) => p.filter((x) => x._id !== roomToDelete._id));
+          showStatus("success", "Room deleted");
+        } else showStatus("error", "Delete failed");
       })
-      .catch(function () {
-        showStatus("error", "Delete failed.");
-      })
-      .finally(function () {
+      .finally(() => {
         setDeleteOpen(false);
         setRoomToDelete(null);
       });
   }
 
-  /* -------------------- render -------------------- */
+  /* ================== UI ================== */
+
   return (
     <>
       <StatusModal
@@ -270,154 +256,139 @@ export default function RoomManagementPage() {
 
       <ConfirmModal
         open={deleteOpen}
-        message={
-          roomToDelete ? `Delete room "${roomToDelete.number}"?` : ""
-        }
+        message={roomToDelete ? `Delete room ${roomToDelete.number}?` : ""}
         onCancel={() => setDeleteOpen(false)}
-        onConfirm={confirmDelete}
+        onConfirm={deleteRoom}
       />
 
-      <main className="p-4 sm:p-6 space-y-6">
+      <main className="p-6 space-y-6">
         <div className="flex justify-between items-center">
-          <p className="text-sm text-gray-600">
-            Manage room inventory, availability and pricing.
-          </p>
+          <h2 className="text-xl font-semibold">Rooms</h2>
           <button
             onClick={openAddForm}
-            className="px-4 py-2 bg-blue-600 text-white rounded text-sm"
+            className="px-4 py-2 bg-blue-600 text-white rounded"
           >
-            + Add New Room
+            + Add Room
           </button>
         </div>
 
         <Card>
-          <div className="flex gap-3 mb-4">
-            <input
-              className="border px-3 py-2 rounded text-sm flex-1"
-              placeholder="Search by room number or type..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-
-            <select
-              className="border px-3 py-2 rounded text-sm"
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-            >
-              <option value="all">All Types</option>
-              <option value="single">Single</option>
-              <option value="double">Double</option>
-              <option value="dorm">Dorm</option>
-            </select>
-
-            <select
-              className="border px-3 py-2 rounded text-sm"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="all">All Status</option>
-              <option value="available">Available</option>
-              <option value="occupied">Occupied</option>
-              <option value="maintenance">Maintenance</option>
-            </select>
-          </div>
-
-          {loading && <p className="text-sm text-gray-500">Loading rooms…</p>}
-          {!loading && error && <p className="text-red-600">{error}</p>}
+          {loading && <p className="text-sm">Loading…</p>}
+          {error && <p className="text-sm text-red-600">{error}</p>}
 
           {!loading && !error && (
-            <table className="w-full text-sm border-t">
+            <table className="w-full text-sm">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-3 py-2 text-left">Room No</th>
-                  <th className="px-3 py-2 text-left">Type</th>
-                  <th className="px-3 py-2 text-left">Status</th>
-                  <th className="px-3 py-2 text-right">Price / Month</th>
-                  <th className="px-3 py-2 text-center">Occupants</th>
-                  <th className="px-3 py-2 text-left">Created At</th>
-                  <th className="px-3 py-2 text-right">Actions</th>
+                  <th className="p-2 text-left">Room</th>
+                  <th className="p-2">Type</th>
+                  <th className="p-2">AC</th>
+                  <th className="p-2">Status</th>
+                  <th className="p-2 text-right">Price</th>
+                  <th className="p-2 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredRooms.map(function (row) {
-                  return (
-                    <tr key={row._id} className="border-t">
-                      <td className="px-3 py-2">{row.number}</td>
-                      <td className="px-3 py-2 capitalize">{row.type}</td>
-                      <td className="px-3 py-2">
-                        <RoomStatusBadge value={row.status} />
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        ₹{row.pricePerMonth?.toLocaleString("en-IN")}
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        {row.occupants?.length || 0}
-                      </td>
-                      <td className="px-3 py-2">
-                        {row.createdAt
-                          ? new Date(row.createdAt).toLocaleDateString()
-                          : "—"}
-                      </td>
-                      <td className="px-3 py-2 text-right space-x-2">
-                        <button
-                          onClick={() => openEditForm(row)}
-                          className="text-blue-600 text-xs"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(row)}
-                          className="text-red-600 text-xs"
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {filteredRooms.map((r) => (
+                  <tr key={r._id} className="border-t">
+                    <td className="p-2">{r.number}</td>
+                    <td className="p-2 capitalize">{r.type}</td>
+                    <td className="p-2 uppercase">{r.acType}</td>
+                    <td className="p-2">
+                      <RoomStatusBadge value={r.status} />
+                    </td>
+                    <td className="p-2 text-right">₹{r.pricePerMonth}</td>
+                    <td className="p-2 text-right space-x-2">
+                      <button
+                        onClick={() => openEditForm(r)}
+                        className="text-blue-600 text-xs"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => confirmDelete(r)}
+                        className="text-red-600 text-xs"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           )}
         </Card>
 
+        {/* FORM MODAL */}
         {showForm && (
-          <div className="fixed inset-0 flex items-center justify-center modal-backdrop">
-            <div className="bg-white p-6 rounded-lg w-full max-w-xl">
+          <div className="fixed inset-0 modal-backdrop flex items-center justify-center">
+            <div className="bg-white w-full max-w-lg rounded-lg p-6">
               <h3 className="text-lg font-semibold mb-4">
                 {formMode === "add" ? "Add Room" : "Edit Room"}
               </h3>
 
-              <form onSubmit={handleFormSubmit} className="space-y-4">
+              <form onSubmit={submitForm} className="space-y-4">
                 <input
-                  className="border px-3 py-2 rounded w-full"
                   placeholder="Room Number"
+                  className="border p-2 w-full"
                   value={formData.number}
-                  onChange={(e) =>
-                    handleFormChange("number", e.target.value)
-                  }
+                  onChange={(e) => handleChange("number", e.target.value)}
                 />
 
-                <input
-                  type="number"
-                  className="border px-3 py-2 rounded w-full"
-                  placeholder="Monthly Price"
-                  value={formData.pricePerMonth}
-                  onChange={(e) =>
-                    handleFormChange("pricePerMonth", e.target.value)
-                  }
-                />
+                <div className="grid grid-cols-2 gap-3">
+                  <select
+                    className="border p-2"
+                    value={formData.type}
+                    onChange={(e) => handleChange("type", e.target.value)}
+                  >
+                    <option value="single">Single</option>
+                    <option value="double">Double</option>
+                    <option value="dorm">Dorm</option>
+                  </select>
+
+                  <select
+                    className="border p-2"
+                    value={formData.acType}
+                    onChange={(e) => handleChange("acType", e.target.value)}
+                  >
+                    <option value="non-ac">Non AC</option>
+                    <option value="ac">AC</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <input
+                    type="number"
+                    placeholder="Price"
+                    className="border p-2"
+                    value={formData.pricePerMonth}
+                    onChange={(e) =>
+                      handleChange("pricePerMonth", e.target.value)
+                    }
+                  />
+
+                  <select
+                    className="border p-2"
+                    value={formData.status}
+                    onChange={(e) => handleChange("status", e.target.value)}
+                  >
+                    <option value="available">Available</option>
+                    <option value="occupied">Occupied</option>
+                    <option value="maintenance">Maintenance</option>
+                  </select>
+                </div>
 
                 <div className="flex justify-end gap-3">
                   <button
                     type="button"
                     onClick={() => setShowForm(false)}
-                    className="border px-4 py-2 rounded"
+                    className="border px-4 py-2"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="bg-blue-600 text-white px-4 py-2 rounded"
+                    className="bg-blue-600 text-white px-4 py-2"
                   >
                     Save
                   </button>
