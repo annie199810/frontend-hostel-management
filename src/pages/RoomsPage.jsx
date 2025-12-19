@@ -4,23 +4,22 @@ import StatusModal from "../components/StatusModal";
 
 var API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
-
+/* -------------------- helpers -------------------- */
 function getAuthHeaders(includeJson) {
   var headers = {};
   var token = null;
+
   try {
     token = localStorage.getItem("token");
   } catch (e) {}
 
-  if (includeJson) {
-    headers["Content-Type"] = "application/json";
-  }
-  if (token) {
-    headers["Authorization"] = "Bearer " + token;
-  }
+  if (includeJson) headers["Content-Type"] = "application/json";
+  if (token) headers["Authorization"] = "Bearer " + token;
+
   return headers;
 }
 
+/* -------------------- badge -------------------- */
 function RoomStatusBadge(props) {
   var v = (props.value || "").toLowerCase();
 
@@ -39,32 +38,27 @@ function RoomStatusBadge(props) {
   );
 }
 
+/* -------------------- confirm delete modal -------------------- */
 function ConfirmModal(props) {
   if (!props.open) return null;
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center px-4 modal-backdrop">
-      <div className="relative z-10 bg-white w-full max-w-sm rounded-2xl shadow-xl p-6 text-center border">
-        <div className="text-red-600 text-5xl mb-3">⚠</div>
-
-        <h2 className="text-xl font-semibold mb-2 text-slate-800">
-          Delete Room
-        </h2>
-
-        <p className="text-slate-600 mb-5 leading-relaxed">{props.message}</p>
+    <div className="fixed inset-0 z-40 flex items-center justify-center modal-backdrop">
+      <div className="bg-white w-full max-w-sm rounded-xl shadow-lg p-6 text-center">
+        <div className="text-red-600 text-4xl mb-3">⚠</div>
+        <h2 className="text-lg font-semibold mb-2">Delete Room</h2>
+        <p className="text-gray-600 mb-5">{props.message}</p>
 
         <div className="flex justify-center gap-3">
           <button
-            type="button"
             onClick={props.onCancel}
-            className="px-4 py-2 rounded-lg border text-sm text-slate-700 hover:bg-slate-100"
+            className="px-4 py-2 border rounded text-sm"
           >
             Cancel
           </button>
           <button
-            type="button"
             onClick={props.onConfirm}
-            className="px-4 py-2 rounded-lg text-sm text-white bg-red-600 hover:bg-red-700"
+            className="px-4 py-2 bg-red-600 text-white rounded text-sm"
           >
             Delete
           </button>
@@ -74,6 +68,7 @@ function ConfirmModal(props) {
   );
 }
 
+/* -------------------- main page -------------------- */
 export default function RoomManagementPage() {
   var [rooms, setRooms] = useState([]);
   var [loading, setLoading] = useState(true);
@@ -106,6 +101,7 @@ export default function RoomManagementPage() {
     setStatusOpen(true);
   }
 
+  /* -------------------- load rooms -------------------- */
   useEffect(function () {
     loadRooms();
   }, []);
@@ -115,51 +111,50 @@ export default function RoomManagementPage() {
     setError("");
 
     fetch(API_BASE + "/api/rooms", {
-      method: "GET",
       headers: getAuthHeaders(false),
     })
       .then(function (res) {
         return res.json();
       })
       .then(function (data) {
-        if (data && data.ok) {
-          setRooms(data.rooms || []);
+        // SAFE handling (no false error)
+        if (Array.isArray(data.rooms)) {
+          setRooms(data.rooms);
         } else {
-          setError(data && data.error ? data.error : "Failed to load rooms");
+          setRooms([]);
         }
       })
       .catch(function () {
-        setError("Cannot reach server");
+        setError("Unable to load rooms.");
       })
       .finally(function () {
         setLoading(false);
       });
   }
 
-  var filteredRooms = useMemo(
-    function () {
-      var text = (search || "").toLowerCase();
+  /* -------------------- filter -------------------- */
+  var filteredRooms = useMemo(function () {
+    var text = (search || "").toLowerCase();
 
-      return (rooms || []).filter(function (r) {
-        var matchSearch =
-          !text ||
-          (r.number || "").toLowerCase().indexOf(text) !== -1 ||
-          (r.type || "").toLowerCase().indexOf(text) !== -1;
+    return rooms.filter(function (r) {
+      var matchText =
+        !text ||
+        (r.number || "").toLowerCase().includes(text) ||
+        (r.type || "").toLowerCase().includes(text);
 
-        var matchStatus =
-          statusFilter === "all" ||
-          (r.status || "").toLowerCase() === statusFilter;
+      var matchStatus =
+        statusFilter === "all" ||
+        (r.status || "").toLowerCase() === statusFilter;
 
-        var matchType =
-          typeFilter === "all" ||
-          (r.type || "").toLowerCase() === typeFilter;
+      var matchType =
+        typeFilter === "all" ||
+        (r.type || "").toLowerCase() === typeFilter;
 
-        return matchSearch && matchStatus && matchType;
-      });
-    },
-    [rooms, search, statusFilter, typeFilter]
-  );
+      return matchText && matchStatus && matchType;
+    });
+  }, [rooms, search, statusFilter, typeFilter]);
 
+  /* -------------------- form -------------------- */
   function openAddForm() {
     setFormMode("add");
     setFormData({
@@ -176,20 +171,17 @@ export default function RoomManagementPage() {
     setFormMode("edit");
     setFormData({
       _id: row._id,
-      number: row.number || "",
-      type: row.type || "single",
-      status: row.status || "available",
-      pricePerMonth:
-        typeof row.pricePerMonth === "number"
-          ? String(row.pricePerMonth)
-          : row.pricePerMonth || "",
+      number: row.number,
+      type: row.type,
+      status: row.status,
+      pricePerMonth: String(row.pricePerMonth || ""),
     });
     setShowForm(true);
   }
 
   function handleFormChange(field, value) {
     setFormData(function (prev) {
-      return Object.assign({}, prev, { [field]: value });
+      return { ...prev, [field]: value };
     });
   }
 
@@ -197,7 +189,7 @@ export default function RoomManagementPage() {
     e.preventDefault();
 
     if (!formData.number || formData.pricePerMonth === "") {
-      showStatus("error", "Please enter room number and monthly price.");
+      showStatus("error", "Room number and price are required.");
       return;
     }
 
@@ -208,92 +200,57 @@ export default function RoomManagementPage() {
       pricePerMonth: Number(formData.pricePerMonth),
     };
 
-    if (formMode === "add") {
-      fetch(API_BASE + "/api/rooms", {
-        method: "POST",
-        headers: getAuthHeaders(true),
-        body: JSON.stringify(payload),
+    var url =
+      formMode === "add"
+        ? API_BASE + "/api/rooms"
+        : API_BASE + "/api/rooms/" + formData._id;
+
+    var method = formMode === "add" ? "POST" : "PUT";
+
+    fetch(url, {
+      method: method,
+      headers: getAuthHeaders(true),
+      body: JSON.stringify(payload),
+    })
+      .then(function (res) {
+        return res.json();
       })
-        .then(function (res) {
-          return res.json();
-        })
-        .then(function (data) {
-          if (data && data.ok) {
-            setShowForm(false);
-            loadRooms();
-            showStatus("success", "Room created successfully.");
-          } else {
-            showStatus(
-              "error",
-              data && data.error ? data.error : "Failed to create room."
-            );
-          }
-        })
-        .catch(function () {
-          showStatus("error", "Server error while creating room.");
-        });
-    } else {
-      fetch(API_BASE + "/api/rooms/" + formData._id, {
-        method: "PUT",
-        headers: getAuthHeaders(true),
-        body: JSON.stringify(payload),
+      .then(function () {
+        setShowForm(false);
+        loadRooms();
+        showStatus(
+          "success",
+          formMode === "add"
+            ? "Room created successfully."
+            : "Room updated successfully."
+        );
       })
-        .then(function (res) {
-          return res.json();
-        })
-        .then(function (data) {
-          if (data && data.ok) {
-            setShowForm(false);
-            loadRooms();
-            showStatus("success", "Room updated successfully.");
-          } else {
-            showStatus(
-              "error",
-              data && data.error ? data.error : "Failed to update room."
-            );
-          }
-        })
-        .catch(function () {
-          showStatus("error", "Server error while updating room.");
-        });
-    }
+      .catch(function () {
+        showStatus("error", "Failed to save room.");
+      });
   }
 
+  /* -------------------- delete -------------------- */
   function handleDelete(row) {
     setRoomToDelete(row);
     setDeleteOpen(true);
   }
 
-  function handleConfirmDelete() {
-    if (!roomToDelete) {
-      setDeleteOpen(false);
-      return;
-    }
-
+  function confirmDelete() {
     fetch(API_BASE + "/api/rooms/" + roomToDelete._id, {
       method: "DELETE",
       headers: getAuthHeaders(false),
     })
-      .then(function (res) {
-        return res.json();
-      })
-      .then(function (data) {
-        if (data && data.ok) {
-          setRooms(function (prev) {
-            return prev.filter(function (r) {
-              return r._id !== roomToDelete._id;
-            });
+      .then(function () {
+        setRooms(function (prev) {
+          return prev.filter(function (r) {
+            return r._id !== roomToDelete._id;
           });
-          showStatus("success", "Room deleted successfully.");
-        } else {
-          showStatus(
-            "error",
-            data && data.error ? data.error : "Failed to delete room."
-          );
-        }
+        });
+        showStatus("success", "Room deleted.");
       })
       .catch(function () {
-        showStatus("error", "Server error while deleting room.");
+        showStatus("error", "Delete failed.");
       })
       .finally(function () {
         setDeleteOpen(false);
@@ -301,287 +258,168 @@ export default function RoomManagementPage() {
       });
   }
 
+  /* -------------------- render -------------------- */
   return (
     <>
       <StatusModal
         open={statusOpen}
         type={statusType}
         message={statusMessage}
-        onClose={function () {
-          setStatusOpen(false);
-        }}
+        onClose={() => setStatusOpen(false)}
       />
 
       <ConfirmModal
         open={deleteOpen}
         message={
-          roomToDelete ? 'Delete room "' + roomToDelete.number + '"?' : ""
+          roomToDelete ? `Delete room "${roomToDelete.number}"?` : ""
         }
-        onCancel={function () {
-          setDeleteOpen(false);
-          setRoomToDelete(null);
-        }}
-        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteOpen(false)}
+        onConfirm={confirmDelete}
       />
 
-      <main className="p-4 sm:p-6 space-y-6 container-responsive">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-sm text-gray-600 mt-1">
-              Manage room inventory, availability and monthly pricing.
-            </p>
-          </div>
-
+      <main className="p-4 sm:p-6 space-y-6">
+        <div className="flex justify-between items-center">
+          <p className="text-sm text-gray-600">
+            Manage room inventory, availability and pricing.
+          </p>
           <button
             onClick={openAddForm}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700 text-sm"
+            className="px-4 py-2 bg-blue-600 text-white rounded text-sm"
           >
             + Add New Room
           </button>
         </div>
 
         <Card>
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div className="flex gap-3 mb-4">
             <input
-              type="text"
+              className="border px-3 py-2 rounded text-sm flex-1"
               placeholder="Search by room number or type..."
-              className="border px-3 py-2 rounded text-sm flex-1 min-w-[220px]"
               value={search}
-              onChange={function (e) {
-                setSearch(e.target.value);
-              }}
+              onChange={(e) => setSearch(e.target.value)}
             />
 
-            <div className="flex gap-3 flex-wrap">
-              <select
-                className="border px-3 py-2 rounded text-sm"
-                value={typeFilter}
-                onChange={function (e) {
-                  setTypeFilter(e.target.value);
-                }}
-              >
-                <option value="all">All Types</option>
-                <option value="single">Single</option>
-                <option value="double">Double</option>
-                <option value="dorm">Dorm</option>
-              </select>
+            <select
+              className="border px-3 py-2 rounded text-sm"
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+            >
+              <option value="all">All Types</option>
+              <option value="single">Single</option>
+              <option value="double">Double</option>
+              <option value="dorm">Dorm</option>
+            </select>
 
-              <select
-                className="border px-3 py-2 rounded text-sm"
-                value={statusFilter}
-                onChange={function (e) {
-                  setStatusFilter(e.target.value);
-                }}
-              >
-                <option value="all">All Status</option>
-                <option value="available">Available</option>
-                <option value="occupied">Occupied</option>
-                <option value="maintenance">Maintenance</option>
-              </select>
-            </div>
+            <select
+              className="border px-3 py-2 rounded text-sm"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="all">All Status</option>
+              <option value="available">Available</option>
+              <option value="occupied">Occupied</option>
+              <option value="maintenance">Maintenance</option>
+            </select>
           </div>
 
-          {loading && (
-            <div className="px-3 py-6 text-sm text-gray-500">
-              Loading rooms…
-            </div>
-          )}
-
-          {!loading && error && (
-            <div className="px-3 py-4 text-sm text-red-600">{error}</div>
-          )}
+          {loading && <p className="text-sm text-gray-500">Loading rooms…</p>}
+          {!loading && error && <p className="text-red-600">{error}</p>}
 
           {!loading && !error && (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm border-t border-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="text-left px-3 py-2 font-semibold">
-                      Room No
-                    </th>
-                    <th className="text-left px-3 py-2 font-semibold">Type</th>
-                    <th className="text-left px-3 py-2 font-semibold">
-                      Status
-                    </th>
-                    <th className="text-right px-3 py-2 font-semibold">
-                      Price / Month
-                    </th>
-                    <th className="text-center px-3 py-2 font-semibold">
-                      Occupants
-                    </th>
-                    <th className="text-left px-3 py-2 font-semibold">
-                      Created At
-                    </th>
-                    <th className="text-right px-3 py-2 font-semibold">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredRooms.length === 0 && (
-                    <tr>
-                      <td
-                        colSpan="7"
-                        className="px-3 py-4 text-center text-gray-500"
-                      >
-                        No rooms found.
+            <table className="w-full text-sm border-t">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 py-2 text-left">Room No</th>
+                  <th className="px-3 py-2 text-left">Type</th>
+                  <th className="px-3 py-2 text-left">Status</th>
+                  <th className="px-3 py-2 text-right">Price / Month</th>
+                  <th className="px-3 py-2 text-center">Occupants</th>
+                  <th className="px-3 py-2 text-left">Created At</th>
+                  <th className="px-3 py-2 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredRooms.map(function (row) {
+                  return (
+                    <tr key={row._id} className="border-t">
+                      <td className="px-3 py-2">{row.number}</td>
+                      <td className="px-3 py-2 capitalize">{row.type}</td>
+                      <td className="px-3 py-2">
+                        <RoomStatusBadge value={row.status} />
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        ₹{row.pricePerMonth?.toLocaleString("en-IN")}
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        {row.occupants?.length || 0}
+                      </td>
+                      <td className="px-3 py-2">
+                        {row.createdAt
+                          ? new Date(row.createdAt).toLocaleDateString()
+                          : "—"}
+                      </td>
+                      <td className="px-3 py-2 text-right space-x-2">
+                        <button
+                          onClick={() => openEditForm(row)}
+                          className="text-blue-600 text-xs"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(row)}
+                          className="text-red-600 text-xs"
+                        >
+                          Delete
+                        </button>
                       </td>
                     </tr>
-                  )}
-
-                  {filteredRooms.map(function (row) {
-                    return (
-                      <tr key={row._id} className="border-t">
-                        <td className="px-3 py-2">{row.number}</td>
-                        <td className="px-3 py-2 capitalize">
-                          {row.type || "-"}
-                        </td>
-                        <td className="px-3 py-2">
-                          <RoomStatusBadge value={row.status} />
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          ₹
-                          {typeof row.pricePerMonth === "number"
-                            ? row.pricePerMonth.toLocaleString("en-IN")
-                            : row.pricePerMonth || "-"}
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          {Array.isArray(row.occupants)
-                            ? row.occupants.length
-                            : 0}
-                        </td>
-                        <td className="px-3 py-2 text-gray-600">
-                          {row.createdAt
-                            ? new Date(row.createdAt).toLocaleDateString()
-                            : "—"}
-                        </td>
-                        <td className="px-3 py-2 text-right space-x-2">
-                          <button
-                            onClick={function () {
-                              openEditForm(row);
-                            }}
-                            className="text-blue-600 hover:underline text-xs"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={function () {
-                              handleDelete(row);
-                            }}
-                            className="text-red-600 hover:underline text-xs"
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                  );
+                })}
+              </tbody>
+            </table>
           )}
         </Card>
 
         {showForm && (
-          <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-20">
-            <div className="bg-white rounded-lg shadow-lg w-full max-w-xl p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-semibold">
-                  {formMode === "add" ? "Add New Room" : "Edit Room"}
-                </h3>
-                <button
-                  onClick={function () {
-                    setShowForm(false);
-                  }}
-                  className="text-gray-500 hover:text-gray-700 text-lg"
-                >
-                  ×
-                </button>
-              </div>
+          <div className="fixed inset-0 flex items-center justify-center modal-backdrop">
+            <div className="bg-white p-6 rounded-lg w-full max-w-xl">
+              <h3 className="text-lg font-semibold mb-4">
+                {formMode === "add" ? "Add Room" : "Edit Room"}
+              </h3>
 
               <form onSubmit={handleFormSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Room Number
-                    </label>
-                    <input
-                      type="text"
-                      className="border px-3 py-2 rounded w-full text-sm"
-                      value={formData.number}
-                      onChange={function (e) {
-                        handleFormChange("number", e.target.value);
-                      }}
-                    />
-                  </div>
+                <input
+                  className="border px-3 py-2 rounded w-full"
+                  placeholder="Room Number"
+                  value={formData.number}
+                  onChange={(e) =>
+                    handleFormChange("number", e.target.value)
+                  }
+                />
 
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Room Type
-                    </label>
-                    <select
-                      className="border px-3 py-2 rounded w-full text-sm"
-                      value={formData.type}
-                      onChange={function (e) {
-                        handleFormChange("type", e.target.value);
-                      }}
-                    >
-                      <option value="single">Single</option>
-                      <option value="double">Double</option>
-                      <option value="dorm">Dorm</option>
-                    </select>
-                  </div>
-                </div>
+                <input
+                  type="number"
+                  className="border px-3 py-2 rounded w-full"
+                  placeholder="Monthly Price"
+                  value={formData.pricePerMonth}
+                  onChange={(e) =>
+                    handleFormChange("pricePerMonth", e.target.value)
+                  }
+                />
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Monthly Price (₹)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      className="border px-3 py-2 rounded w-full text-sm"
-                      value={formData.pricePerMonth}
-                      onChange={function (e) {
-                        handleFormChange("pricePerMonth", e.target.value);
-                      }}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Status
-                    </label>
-                    <select
-                      className="border px-3 py-2 rounded w-full text-sm"
-                      value={formData.status}
-                      onChange={function (e) {
-                        handleFormChange("status", e.target.value);
-                      }}
-                    >
-                      <option value="available">Available</option>
-                      <option value="occupied">Occupied</option>
-                      <option value="maintenance">Maintenance</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-3 pt-2">
+                <div className="flex justify-end gap-3">
                   <button
                     type="button"
-                    onClick={function () {
-                      setShowForm(false);
-                    }}
-                    className="px-4 py-2 border rounded text-sm"
+                    onClick={() => setShowForm(false)}
+                    className="border px-4 py-2 rounded"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-blue-600 text-white rounded text-sm"
+                    className="bg-blue-600 text-white px-4 py-2 rounded"
                   >
-                    {formMode === "add" ? "Create Room" : "Save Changes"}
+                    Save
                   </button>
                 </div>
               </form>
