@@ -133,8 +133,7 @@ export default function RoomManagementPage() {
       <main className="p-6 space-y-6">
     
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold">Room Management</h1>
+          <div>           
             <p className="text-sm text-gray-500 mt-1">
               Manage hostel room inventory & pricing
             </p>

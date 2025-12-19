@@ -6,7 +6,7 @@ import { useAuth } from "../auth/AuthProvider";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
-/* ---------------- helpers ---------------- */
+
 function getAuthHeaders() {
   var headers = {};
   var token = localStorage.getItem("token");
@@ -19,7 +19,7 @@ function formatCurrency(val) {
   return "₹" + val.toLocaleString("en-IN");
 }
 
-/* ---------------- component ---------------- */
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const location = useLocation();
@@ -60,7 +60,7 @@ export default function DashboardPage() {
     }
   }
 
-  /* ---------------- stats ---------------- */
+ 
   const totalRooms = rooms.length;
   const occupied = rooms.filter(r => r.status === "occupied").length;
   const available = rooms.filter(r => r.status === "available").length;
@@ -77,13 +77,13 @@ export default function DashboardPage() {
     .sort((a, b) => (b.checkIn || "").localeCompare(a.checkIn || ""))
     .slice(0, 5);
 
-  /* ---------------- donut ---------------- */
+ 
   const radius = 90;
   const stroke = 14;
   const circumference = 2 * Math.PI * radius;
   const progress = (occupancyRate / 100) * circumference;
 
-  /* ---------------- UI ---------------- */
+ 
   return (
     <main className="p-6 space-y-6 bg-gray-50 min-h-screen">
       <StatusModal
@@ -93,8 +93,7 @@ export default function DashboardPage() {
         onClose={() => setWelcomeOpen(false)}
       />
 
-      <div>
-        <h1 className="text-2xl font-bold">Dashboard</h1>
+      <div>       
         <p className="text-sm text-gray-500">
           Here’s an overview of your hostel today.
         </p>
@@ -104,7 +103,7 @@ export default function DashboardPage() {
         <p className="text-sm text-gray-500">Loading…</p>
       ) : (
         <>
-          {/* TOP CARDS */}
+       
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card>
               <div className="flex gap-4 items-center">
@@ -156,9 +155,9 @@ export default function DashboardPage() {
             </Card>
           </div>
 
-          {/* BOTTOM SECTION */}
+          
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* RECENT ACTIVITIES */}
+           
             <Card>
               <div className="flex justify-between mb-3">
                 <h3 className="font-semibold">Recent Activities</h3>
@@ -188,7 +187,7 @@ export default function DashboardPage() {
               ))}
             </Card>
 
-            {/* OCCUPANCY DONUT */}
+          
             <Card>
               <h3 className="font-semibold mb-4">Occupancy Rate</h3>
 

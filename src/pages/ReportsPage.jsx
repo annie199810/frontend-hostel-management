@@ -4,7 +4,7 @@ import Card from "../components/Card";
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
-/* ---------- HELPERS ---------- */
+
 function formatCurrency(v) {
   if (!v) return "₹0";
   return "₹" + Number(v).toLocaleString("en-IN");
@@ -31,7 +31,7 @@ function withAuth(headers) {
   };
 }
 
-/* ---------- PAGE ---------- */
+
 export default function ReportsPage() {
   const [rooms, setRooms] = useState([]);
   const [bills, setBills] = useState([]);
@@ -40,7 +40,7 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  /* ---------- LOAD DATA ---------- */
+
   useEffect(() => {
     async function loadReports() {
       setLoading(true);
@@ -83,7 +83,7 @@ export default function ReportsPage() {
     loadReports();
   }, []);
 
-  /* ---------- BILLING STATS ---------- */
+  
   const billingStats = useMemo(() => {
     let total = 0,
       paid = 0,
@@ -101,7 +101,7 @@ export default function ReportsPage() {
     return { total, paid, pending };
   }, [bills]);
 
-  /* ---------- MONTHLY REVENUE ---------- */
+ 
   const monthlyRevenue = useMemo(() => {
     const map = {};
     bills.forEach((b) => {
@@ -124,7 +124,7 @@ export default function ReportsPage() {
     return { entries, max };
   }, [bills]);
 
-  /* ---------- ROOM STATS ---------- */
+  
   const roomStats = useMemo(() => {
     let occupied = 0,
       available = 0,
@@ -145,7 +145,7 @@ export default function ReportsPage() {
     };
   }, [rooms]);
 
-  /* ---------- MAINTENANCE STATS ---------- */
+  
   const maintenanceStats = useMemo(() => {
     let open = 0,
       inProgress = 0,
@@ -161,7 +161,7 @@ export default function ReportsPage() {
     return { open, inProgress, closed };
   }, [maintenance]);
 
-  /* ---------- STATES ---------- */
+  
   if (loading) {
     return (
       <main className="p-6">
@@ -178,10 +178,10 @@ export default function ReportsPage() {
     );
   }
 
-  /* ---------- UI ---------- */
+ 
   return (
     <main className="p-6 space-y-6">
-      {/* SUMMARY CARDS */}
+     
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
           <div className="text-sm opacity-90">Total Revenue</div>
@@ -212,7 +212,7 @@ export default function ReportsPage() {
         </Card>
       </div>
 
-      {/* REVENUE BREAKDOWN */}
+      
       <Card title="Revenue Breakdown">
         {monthlyRevenue.entries.length === 0 && (
           <p className="text-xs text-gray-500 text-center py-6">
@@ -247,7 +247,7 @@ export default function ReportsPage() {
         </div>
       </Card>
 
-      {/* INSIGHTS */}
+     
       <Card title="Insights">
         <ul className="space-y-2 text-sm">
           {billingStats.pending > 0 && (

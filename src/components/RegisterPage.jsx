@@ -7,19 +7,19 @@ export default function RegisterPage() {
   const navigate = useNavigate();
   const { register, user, ready, logout } = useAuth();
 
-  // form fields (shared)
+ 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // modal state
+
   const [modalOpen, setModalOpen] = useState(false);
   const [modalType, setModalType] = useState("info");
   const [modalMessage, setModalMessage] = useState("");
 
-  // On mount: clear any login session (as you had)
+ 
   useEffect(() => {
     try { logout?.(); } catch (e) {}
     try { localStorage.removeItem("token"); } catch (e) {}
@@ -34,7 +34,7 @@ export default function RegisterPage() {
     setModalOpen(false);
   }
 
-  // Self-register (normal users) - DO NOT send role or allow client to set role
+  
   async function handleSelfRegister(e) {
     e.preventDefault();
     setError("");
@@ -44,7 +44,7 @@ export default function RegisterPage() {
     try {
       const res = await register({ name, email, password }, { autoLogin: false });
 
-      // remove any token if register somehow set it
+
       if (localStorage.getItem("token")) {
         localStorage.removeItem("token");
       }
@@ -55,7 +55,7 @@ export default function RegisterPage() {
         setEmail("");
         setPassword("");
 
-        // close modal then redirect to login
+        
         setTimeout(() => {
           closeModal();
           navigate("/login", { replace: true, state: { justRegistered: true } });
@@ -74,7 +74,7 @@ export default function RegisterPage() {
     }
   }
 
-  // Admin: create user (calls /api/users). Admin decides role (Staff or Admin)
+ 
   async function createUserAsAdmin(e) {
     e.preventDefault();
     setError("");
@@ -89,7 +89,7 @@ export default function RegisterPage() {
           "Content-Type": "application/json",
           Authorization: token ? `Bearer ${token}` : "",
         },
-        body: JSON.stringify({ name, email, password }), // admin may add role if you want
+        body: JSON.stringify({ name, email, password }), 
       });
 
       const data = await res.json();
@@ -108,7 +108,7 @@ export default function RegisterPage() {
     }
   }
 
-  // While auth context initializes
+ 
   if (!ready) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-900/20">
@@ -117,7 +117,7 @@ export default function RegisterPage() {
     );
   }
 
-  // If logged in but not admin -> block registration creation (for admin-only features only)
+ 
   if (user && user.role && user.role !== "Admin" && user.role !== "Administrator") {
     return (
       <div
@@ -148,7 +148,7 @@ export default function RegisterPage() {
     );
   }
 
-  // If Admin -> show admin create user form
+ 
   if (user && (user.role === "Admin" || user.role === "Administrator")) {
     return (
       <div
@@ -162,7 +162,7 @@ export default function RegisterPage() {
             <h1 className="text-center text-xl font-semibold text-gray-800">Create user (Admin)</h1>
 
             <form onSubmit={createUserAsAdmin} className="mt-6 space-y-4" autoComplete="off">
-              {/* hidden fields to prevent browser autofill */}
+             
               <input type="text" name="fakeusernameremembered" style={{ display: "none" }} />
               <input type="password" name="fakepasswordremembered" style={{ display: "none" }} />
 
@@ -241,7 +241,7 @@ export default function RegisterPage() {
           <h1 className="text-center text-xl font-semibold text-gray-800">Create an account</h1>
 
           <form onSubmit={handleSelfRegister} className="mt-6 space-y-4" autoComplete="off">
-            {/* hidden fields to prevent browser autofill */}
+          
             <input type="text" name="fakeusernameremembered" style={{ display: "none" }} />
             <input type="password" name="fakepasswordremembered" style={{ display: "none" }} />
 

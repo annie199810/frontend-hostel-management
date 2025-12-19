@@ -4,7 +4,7 @@ import StatusModal from "../components/StatusModal";
 
 var API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
-/* ---------------- helpers ---------------- */
+
 
 function getAuthHeaders(includeJson) {
   var headers = {};
@@ -70,7 +70,7 @@ function ConfirmModal(props) {
   );
 }
 
-/* ---------------- page ---------------- */
+
 
 export default function ResidentsPage() {
   var [items, setItems] = useState([]);
@@ -103,7 +103,7 @@ export default function ResidentsPage() {
     setStatusOpen(true);
   }
 
-  /* ---------------- load ---------------- */
+ 
 
   useEffect(function () {
     loadResidents();
@@ -125,7 +125,7 @@ export default function ResidentsPage() {
       .finally(() => setLoading(false));
   }
 
-  /* ---------------- filters ---------------- */
+  
 
   var filteredItems = useMemo(
     function () {
@@ -148,7 +148,7 @@ export default function ResidentsPage() {
     [items, search, statusFilter]
   );
 
-  /* ---------------- form ---------------- */
+  
 
   function openAddForm() {
     setFormMode("add");
@@ -221,7 +221,7 @@ export default function ResidentsPage() {
       .catch(() => showStatus("error", "Server error"));
   }
 
-  /* ---------------- delete ---------------- */
+ 
 
   function handleDelete(row) {
     setResidentToDelete(row);
@@ -248,7 +248,7 @@ export default function ResidentsPage() {
       });
   }
 
-  /* ---------------- render ---------------- */
+ 
 
   return (
     <>
@@ -273,8 +273,7 @@ export default function ResidentsPage() {
       <main className="p-4 sm:p-6 space-y-6">
         {/* header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-semibold text-gray-800">Residents</h2>
+          <div>          
             <p className="text-sm text-gray-500">
               Manage hostel residents & room allocation
             </p>
@@ -289,7 +288,7 @@ export default function ResidentsPage() {
         </div>
 
         <Card>
-          {/* filters */}
+     
           <div className="flex flex-col sm:flex-row gap-3 mb-4">
             <input
               className="border px-4 py-2 rounded-lg text-sm flex-1"
@@ -309,7 +308,7 @@ export default function ResidentsPage() {
             </select>
           </div>
 
-          {/* table */}
+      
           <div className="overflow-x-auto rounded-xl border">
             <table className="min-w-full text-sm">
               <thead className="bg-gray-100 text-gray-700">
@@ -364,7 +363,7 @@ export default function ResidentsPage() {
           </div>
         </Card>
 
-        {/* modal */}
+       
         {showForm && (
           <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-20">
             <div className="bg-white w-full max-w-lg rounded-xl shadow-lg p-6">
