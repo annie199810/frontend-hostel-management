@@ -1,127 +1,196 @@
 🏨 Hostel Management System – Frontend
 
-This is the frontend application of the Hostel Management System, built using React (Vite) and TailwindCSS.
-It provides a modern, responsive UI for managing rooms, residents, billing, maintenance, dashboards, and user accounts.
+This repository contains the frontend application of the Hostel Management System, built using React (Vite) and Tailwind CSS.
 
-🚀 Live Frontend (Netlify)
+The application provides a modern, responsive, and role-based UI for managing hostel operations such as rooms, residents, maintenance, billing, payments, reports, and users.
 
-🔗 https://hostelmanagementtt.netlify.app
+🚀 Live Application (Frontend)
+
+🔗 Netlify URL
+https://hostelmanagementtt.netlify.app
+
+🔐 Demo Credentials (For Evaluation)
+👑 Admin Account
+Email: admin@hostel.com
+Password: admin123
+
+👷 Staff Account
+Email: staff@hostel.com
+Password: staff123
+
+🔎 Role Behavior
+
+Admin
+
+Full access to all modules
+
+Can create, edit, activate, and deactivate Staff users
+
+Staff
+
+Can manage rooms, residents, maintenance, billing, and reports
+
+Cannot access User Management
+
+ℹ️ Staff users are created only by Admin from the User Management page.
 
 ✨ Features (Frontend)
-🔐 Authentication
+🔐 Authentication & Authorization
 
-Login screen with JWT authentication
+JWT-based login system
 
-Token stored in LocalStorage
+Token stored securely in localStorage
 
-Redirect protection for private pages
+Protected routes (unauthorized users redirected to Login)
+
+Role-based UI (Admin vs Staff)
 
 🏠 Room Management
 
 Add / Edit / Delete rooms
 
-Real-time room availability (Available / Occupied / Maintenance)
+Room status tracking:
 
-Auto occupancy update when residents change rooms
+Available
+
+Occupied
+
+Maintenance
+
+Automatic occupancy updates based on resident allocation
 
 👤 Resident Management
 
 Add / Edit / Delete residents
 
-Auto room assignment & check-in date
+Auto room assignment
 
-Room sync (occupancy updates automatically)
+Check-in date handling
+
+Room occupancy sync when residents change rooms
 
 🔧 Maintenance Requests
 
-Create / Update / Delete maintenance issues
+Create / Update / Delete maintenance requests
 
-Track status: Open → In Progress → Closed
+Track status:
 
-Priority handling
+Open
+
+In Progress
+
+Closed
+
+Priority levels:
+
+High
+
+Medium
+
+Low
 
 💳 Billing & Payments
 
-Add bills
+Create and manage bills
 
 Edit & delete bills
 
-“Pay Now” → status changes to Paid
+“Pay Now” option
 
-Invoice number, notes, due date
+Payment status update (Pending → Paid)
 
-Disabled actions for paid bills
+Invoice number, due date, and notes
+
+Disabled actions for paid invoices
 
 📊 Dashboard & Reports
 
-Billing summary
+Total revenue summary
 
-Room occupancy chart
+Paid vs pending revenue
 
-Monthly revenue graph
+Monthly revenue breakdown
 
-Maintenance statistics
+Room occupancy overview
 
-👥 User Management
+Maintenance status analytics
 
-Add / Edit / Delete staff accounts
+Visual charts and insights
 
-Activate / Deactivate user accounts
+👥 User Management (Admin Only)
 
-Admin accounts are protected (cannot delete)
+Add / Edit / Delete staff users
 
-🎨 UI/UX
+Activate / Deactivate users
 
-TailwindCSS for styling
+Admin accounts are protected (cannot be deleted)
 
-Responsive layout (mobile + desktop)
+🎨 UI / UX
 
-Clean card-based dashboard
+Built with Tailwind CSS
 
-Reusable components (Card, StatusModal, Forms, Tables)
+Fully responsive (desktop & mobile)
+
+Clean card-based dashboard layout
+
+Reusable UI components:
+
+Cards
+
+Modals
+
+Tables
+
+Forms
+
+Status badges
 
 🛠️ Tech Stack
-
-Frontend:
+Frontend
 
 React.js (Vite)
 
-TailwindCSS
+Tailwind CSS
 
 JavaScript (ES6)
 
-LocalStorage Auth
+Fetch API
 
-Fetch API for backend communication
+JWT Authentication
 
-Deployment:
+LocalStorage
+
+Deployment
 
 Netlify
 
 ⚙️ Installation & Setup (Frontend)
-1️⃣ Clone the repo
+1️⃣ Clone the Repository
 git clone https://github.com/annie199810/frontend-hostel-management.git
 cd frontend-hostel-management
 
-2️⃣ Install dependencies
+2️⃣ Install Dependencies
 npm install
 
-3️⃣ Create a .env file
+3️⃣ Environment Variables
+
+Create a .env file in the root directory:
+
 VITE_API_BASE_URL=http://localhost:5000
 
 
-For deployed version, Netlify variable is:
+For deployed backend (Netlify):
 
 VITE_API_BASE_URL=https://backend-hostel-management.onrender.com
 
-4️⃣ Run the development server
+4️⃣ Run Development Server
 npm run dev
 
 
-Frontend will start at:
+Frontend will be available at:
 👉 http://localhost:5173
 
-
+📂 Project Structure
 src/
 │
 ├─ api/
@@ -129,7 +198,7 @@ src/
 │   └─ users.js
 │
 ├─ assets/
-│   └─ (images, icons…)
+│   └─ images / icons
 │
 ├─ auth/
 │   ├─ AuthProvider.jsx
@@ -157,36 +226,41 @@ src/
 ├─ utils/
 │   └─ auth.js
 │
-├─ App.css
 ├─ App.jsx
+├─ App.css
 └─ main.jsx
 
-🔐 Authentication Flow (Frontend)
+🔐 Authentication Flow
 
-User logs in
+User logs in using email & password
 
-Backend returns a JWT
+Backend returns a JWT token
 
-Token saved in localStorage
+Token is stored in localStorage
 
-All private API requests include:
+All protected API requests include:
 
 Authorization: Bearer <token>
 
 
-If token is missing → redirect to Login Page
+If token is missing or invalid → redirect to Login page
 
 🧪 Scripts
-npm run dev      # Start frontend locally
-npm run build    # Create production build
-npm run preview  # Preview built version
+npm run dev       # Start frontend locally
+npm run build     # Build production files
+npm run preview   # Preview production build
 
 🧹 Notes
 
-Frontend uses no external UI libraries, only TailwindCSS
+No external UI libraries used (only Tailwind CSS)
 
-Protected routes check for JWT token
+Fully responsive UI
 
-Fully responsive design
+Clean separation of Admin and Staff roles
 
-No company names included (as per requirements)
+No company or brand names included (GUVI requirement compliant)
+
+🔗 Related Repository
+
+🔙 Backend Repository
+https://github.com/annie199810/backend-hostel-management
