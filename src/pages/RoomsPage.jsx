@@ -2,8 +2,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import Card from "../components/Card";
 import StatusModal from "../components/StatusModal";
 
-var API_BASE = import.meta.env.VITE_API_BASE_URL || "";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
+/* ---------------- AUTH HEADERS ---------------- */
 function getAuthHeaders(includeJson) {
   var headers = {};
   var token = null;
@@ -15,17 +16,13 @@ function getAuthHeaders(includeJson) {
   if (includeJson) {
     headers["Content-Type"] = "application/json";
   }
-
   if (token) {
     headers["Authorization"] = "Bearer " + token;
   }
-
-  // 🔥 IMPORTANT: disable cache
-  headers["Cache-Control"] = "no-cache";
-
   return headers;
 }
 
+/* ---------------- STATUS BADGE ---------------- */
 function RoomStatusBadge(props) {
   var v = (props.value || "").toLowerCase();
 
@@ -44,18 +41,62 @@ function RoomStatusBadge(props) {
   );
 }
 
+/* ---------------- DELETE CONFIRM MODAL ---------------- */
+function ConfirmModal(props) {
+  if (!props.open) return null;
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center px-4 modal-backdrop">
+      <div className="bg-white w-full max-w-sm rounded-xl shadow-lg p-6 text-center">
+        <div className="text-red-600 text-4xl mb-3">⚠</div>
+        <h2 className="text-lg font-semibold mb-2">Delete Room</h2>
+        <p className="text-gray-600 mb-4">{props.message}</p>
+
+        <div className="flex justify-center gap-3">
+          <button
+            onClick={props.onCancel}
+            className="px-4 py-2 border rounded text-sm"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={props.onConfirm}
+            className="px-4 py-2 bg-red-600 text-white rounded text-sm"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================= MAIN PAGE ================= */
 export default function RoomManagementPage() {
-  var [rooms, setRooms] = useState([]);
-  var [loading, setLoading] = useState(true);
-  var [error, setError] = useState("");
+  const [rooms, setRooms] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  var [search, setSearch] = useState("");
-  var [statusFilter, setStatusFilter] = useState("all");
-  var [typeFilter, setTypeFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
 
-  var [statusOpen, setStatusOpen] = useState(false);
-  var [statusType, setStatusType] = useState("success");
-  var [statusMessage, setStatusMessage] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [formMode, setFormMode] = useState("add");
+  const [formData, setFormData] = useState({
+    _id: null,
+    number: "",
+    type: "single",
+    status: "available",
+    pricePerMonth: "",
+  });
+
+  const [statusOpen, setStatusOpen] = useState(false);
+  const [statusType, setStatusType] = useState("success");
+  const [statusMessage, setStatusMessage] = useState("");
+
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [roomToDelete, setRoomToDelete] = useState(null);
 
   function showStatus(type, message) {
     setStatusType(type);
@@ -63,177 +104,293 @@ export default function RoomManagementPage() {
     setStatusOpen(true);
   }
 
-  useEffect(function () {
+  /* ---------------- LOAD ROOMS (FIXED) ---------------- */
+  useEffect(() => {
     loadRooms();
   }, []);
 
-  // ✅ FIXED LOAD ROOMS
   function loadRooms() {
     setLoading(true);
     setError("");
 
     fetch(API_BASE + "/api/rooms", {
-      method: "GET",
       headers: getAuthHeaders(false),
     })
-      .then(function (res) {
-        // ✅ Accept 200 & 304
-        if (res.status === 401) {
-          throw new Error("Unauthorized");
-        }
-
-        if (res.status === 304) {
-          return { ok: true, rooms: rooms }; // keep existing
-        }
-
-        if (!res.ok) {
-          throw new Error("Failed to load rooms");
-        }
-
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed");
         return res.json();
       })
-      .then(function (data) {
-        if (data && data.ok) {
-          setRooms(data.rooms || []);
+      .then((data) => {
+        // ✅ BACKEND RETURNS ARRAY
+        if (Array.isArray(data)) {
+          setRooms(data);
         } else {
-          setError(data?.error || "Failed to load rooms");
+          setError("Failed to load rooms");
         }
       })
-      .catch(function (err) {
-        console.error(err);
+      .catch(() => {
         setError("Failed to load rooms");
       })
-      .finally(function () {
+      .finally(() => {
         setLoading(false);
       });
   }
 
-  var filteredRooms = useMemo(
-    function () {
-      var text = (search || "").toLowerCase();
+  /* ---------------- FILTER ---------------- */
+  const filteredRooms = useMemo(() => {
+    const text = search.toLowerCase();
 
-      return (rooms || []).filter(function (r) {
-        var matchSearch =
-          !text ||
-          (r.number || "").toLowerCase().includes(text) ||
-          (r.type || "").toLowerCase().includes(text);
+    return rooms.filter((r) => {
+      const matchSearch =
+        !text ||
+        r.number?.toLowerCase().includes(text) ||
+        r.type?.toLowerCase().includes(text);
 
-        var matchStatus =
-          statusFilter === "all" ||
-          (r.status || "").toLowerCase() === statusFilter;
+      const matchStatus =
+        statusFilter === "all" || r.status === statusFilter;
 
-        var matchType =
-          typeFilter === "all" ||
-          (r.type || "").toLowerCase() === typeFilter;
+      const matchType =
+        typeFilter === "all" || r.type === typeFilter;
 
-        return matchSearch && matchStatus && matchType;
+      return matchSearch && matchStatus && matchType;
+    });
+  }, [rooms, search, statusFilter, typeFilter]);
+
+  /* ---------------- ADD / EDIT ---------------- */
+  function openAddForm() {
+    setFormMode("add");
+    setFormData({
+      _id: null,
+      number: "",
+      type: "single",
+      status: "available",
+      pricePerMonth: "",
+    });
+    setShowForm(true);
+  }
+
+  function openEditForm(row) {
+    setFormMode("edit");
+    setFormData({
+      _id: row._id,
+      number: row.number,
+      type: row.type,
+      status: row.status,
+      pricePerMonth: row.pricePerMonth,
+    });
+    setShowForm(true);
+  }
+
+  function handleFormChange(field, value) {
+    setFormData((p) => ({ ...p, [field]: value }));
+  }
+
+  function handleFormSubmit(e) {
+    e.preventDefault();
+
+    const payload = {
+      number: formData.number,
+      type: formData.type,
+      status: formData.status,
+      pricePerMonth: Number(formData.pricePerMonth),
+    };
+
+    const url =
+      formMode === "add"
+        ? API_BASE + "/api/rooms"
+        : API_BASE + "/api/rooms/" + formData._id;
+
+    const method = formMode === "add" ? "POST" : "PUT";
+
+    fetch(url, {
+      method,
+      headers: getAuthHeaders(true),
+      body: JSON.stringify(payload),
+    })
+      .then((r) => r.json())
+      .then(() => {
+        setShowForm(false);
+        loadRooms();
+        showStatus("success", "Room saved successfully");
+      })
+      .catch(() => {
+        showStatus("error", "Failed to save room");
       });
-    },
-    [rooms, search, statusFilter, typeFilter]
-  );
+  }
 
+  /* ---------------- DELETE ---------------- */
+  function handleConfirmDelete() {
+    fetch(API_BASE + "/api/rooms/" + roomToDelete._id, {
+      method: "DELETE",
+      headers: getAuthHeaders(false),
+    })
+      .then(() => {
+        loadRooms();
+        showStatus("success", "Room deleted");
+      })
+      .catch(() => {
+        showStatus("error", "Failed to delete room");
+      })
+      .finally(() => {
+        setDeleteOpen(false);
+        setRoomToDelete(null);
+      });
+  }
+
+  /* ================= UI ================= */
   return (
     <>
       <StatusModal
         open={statusOpen}
         type={statusType}
         message={statusMessage}
-        onClose={function () {
-          setStatusOpen(false);
-        }}
+        onClose={() => setStatusOpen(false)}
       />
 
-      <main className="p-4 sm:p-6 space-y-6">
+      <ConfirmModal
+        open={deleteOpen}
+        message={`Delete room "${roomToDelete?.number}"?`}
+        onCancel={() => setDeleteOpen(false)}
+        onConfirm={handleConfirmDelete}
+      />
+
+      <main className="p-6 space-y-6">
+        <div className="flex justify-between items-center">
+          <p className="text-sm text-gray-600">
+            Manage room inventory, availability and pricing.
+          </p>
+          <button
+            onClick={openAddForm}
+            className="px-4 py-2 bg-blue-600 text-white rounded"
+          >
+            + Add New Room
+          </button>
+        </div>
+
         <Card>
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div className="flex gap-3 mb-4">
             <input
-              type="text"
-              placeholder="Search by room number or type..."
-              className="border px-3 py-2 rounded text-sm flex-1 min-w-[220px]"
+              className="border px-3 py-2 rounded text-sm flex-1"
+              placeholder="Search room..."
               value={search}
-              onChange={function (e) {
-                setSearch(e.target.value);
-              }}
+              onChange={(e) => setSearch(e.target.value)}
             />
-
-            <div className="flex gap-3 flex-wrap">
-              <select
-                className="border px-3 py-2 rounded text-sm"
-                value={typeFilter}
-                onChange={function (e) {
-                  setTypeFilter(e.target.value);
-                }}
-              >
-                <option value="all">All Types</option>
-                <option value="single">Single</option>
-                <option value="double">Double</option>
-                <option value="dorm">Dorm</option>
-              </select>
-
-              <select
-                className="border px-3 py-2 rounded text-sm"
-                value={statusFilter}
-                onChange={function (e) {
-                  setStatusFilter(e.target.value);
-                }}
-              >
-                <option value="all">All Status</option>
-                <option value="available">Available</option>
-                <option value="occupied">Occupied</option>
-                <option value="maintenance">Maintenance</option>
-              </select>
-            </div>
+            <select
+              className="border px-3 py-2 rounded text-sm"
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+            >
+              <option value="all">All Types</option>
+              <option value="single">Single</option>
+              <option value="double">Double</option>
+              <option value="dorm">Dorm</option>
+            </select>
+            <select
+              className="border px-3 py-2 rounded text-sm"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="all">All Status</option>
+              <option value="available">Available</option>
+              <option value="occupied">Occupied</option>
+              <option value="maintenance">Maintenance</option>
+            </select>
           </div>
 
-          {loading && (
-            <div className="px-3 py-6 text-sm text-gray-500">
-              Loading rooms…
-            </div>
-          )}
-
-          {!loading && error && (
-            <div className="px-3 py-4 text-sm text-red-600">{error}</div>
-          )}
+          {loading && <p>Loading rooms…</p>}
+          {error && <p className="text-red-600">{error}</p>}
 
           {!loading && !error && (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm border-t border-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-3 py-2 text-left">Room No</th>
-                    <th className="px-3 py-2 text-left">Type</th>
-                    <th className="px-3 py-2 text-left">Status</th>
-                    <th className="px-3 py-2 text-right">Price / Month</th>
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="p-2 text-left">Room</th>
+                  <th className="p-2">Type</th>
+                  <th className="p-2">Status</th>
+                  <th className="p-2 text-right">Price</th>
+                  <th className="p-2 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredRooms.map((r) => (
+                  <tr key={r._id} className="border-t">
+                    <td className="p-2">{r.number}</td>
+                    <td className="p-2 capitalize">{r.type}</td>
+                    <td className="p-2">
+                      <RoomStatusBadge value={r.status} />
+                    </td>
+                    <td className="p-2 text-right">
+                      ₹{r.pricePerMonth}
+                    </td>
+                    <td className="p-2 text-right">
+                      <button
+                        onClick={() => openEditForm(r)}
+                        className="text-blue-600 mr-3"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => {
+                          setRoomToDelete(r);
+                          setDeleteOpen(true);
+                        }}
+                        className="text-red-600"
+                      >
+                        Delete
+                      </button>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {filteredRooms.length === 0 && (
-                    <tr>
-                      <td colSpan="4" className="px-3 py-4 text-center text-gray-500">
-                        No rooms found.
-                      </td>
-                    </tr>
-                  )}
-
-                  {filteredRooms.map(function (row) {
-                    return (
-                      <tr key={row._id} className="border-t">
-                        <td className="px-3 py-2">{row.number}</td>
-                        <td className="px-3 py-2 capitalize">{row.type}</td>
-                        <td className="px-3 py-2">
-                          <RoomStatusBadge value={row.status} />
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          ₹{row.pricePerMonth?.toLocaleString("en-IN")}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </table>
           )}
         </Card>
+
+        {showForm && (
+          <div className="fixed inset-0 flex items-center justify-center modal-backdrop">
+            <div className="bg-white p-6 rounded w-full max-w-lg">
+              <h3 className="text-lg font-semibold mb-4">
+                {formMode === "add" ? "Add Room" : "Edit Room"}
+              </h3>
+
+              <form onSubmit={handleFormSubmit} className="space-y-4">
+                <input
+                  className="border px-3 py-2 w-full"
+                  placeholder="Room Number"
+                  value={formData.number}
+                  onChange={(e) =>
+                    handleFormChange("number", e.target.value)
+                  }
+                />
+                <input
+                  type="number"
+                  className="border px-3 py-2 w-full"
+                  placeholder="Monthly Price"
+                  value={formData.pricePerMonth}
+                  onChange={(e) =>
+                    handleFormChange("pricePerMonth", e.target.value)
+                  }
+                />
+
+                <div className="flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowForm(false)}
+                    className="border px-4 py-2 rounded"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="bg-blue-600 text-white px-4 py-2 rounded"
+                  >
+                    Save
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </main>
     </>
   );
