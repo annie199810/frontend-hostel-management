@@ -1,88 +1,72 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Card from "../components/Card";
-import { useAuth } from "../auth/AuthProvider";
+import StatusModal from "../components/StatusModal";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL;
+var API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
-/* -------------------- HELPERS -------------------- */
 
-function getAuthHeaders(json) {
+function getAuthHeaders(includeJson) {
   var headers = {};
-  var token = localStorage.getItem("token");
-  if (json) headers["Content-Type"] = "application/json";
-  if (token) headers["Authorization"] = "Bearer " + token;
+  var token = null;
+  try {
+    token = localStorage.getItem("token");
+  } catch (e) {}
+
+  if (includeJson) {
+    headers["Content-Type"] = "application/json";
+  }
+  if (token) {
+    headers["Authorization"] = "Bearer " + token;
+  }
   return headers;
 }
 
-function StatusBadge({ value }) {
+function RoomStatusBadge(props) {
+  var v = (props.value || "").toLowerCase();
+
   var map = {
-    available: "bg-green-100 text-green-700",
-    occupied: "bg-blue-100 text-blue-700",
-    maintenance: "bg-yellow-100 text-yellow-700",
+    available: "bg-emerald-50 text-emerald-700",
+    occupied: "bg-sky-50 text-sky-700",
+    maintenance: "bg-amber-50 text-amber-700",
   };
 
+  var cls = map[v] || "bg-gray-100 text-gray-600";
+
   return (
-    <span
-      className={
-        "px-2 py-1 rounded-full text-xs font-medium " +
-        (map[value] || "bg-gray-100 text-gray-600")
-      }
-    >
-      {value}
+    <span className={"px-2 py-0.5 rounded-full text-xs font-medium " + cls}>
+      {props.value || "-"}
     </span>
   );
 }
 
-/* -------------------- TOAST -------------------- */
-
-function Toast({ open, type, message, onClose }) {
-  if (!open) return null;
+function ConfirmModal(props) {
+  if (!props.open) return null;
 
   return (
-    <div className="fixed top-5 right-5 z-50 animate-slide-in">
-      <div
-        className={
-          "px-4 py-3 rounded-lg shadow text-white text-sm " +
-          (type === "error" ? "bg-red-600" : "bg-green-600")
-        }
-      >
-        {message}
-        <button
-          className="ml-3 font-bold"
-          onClick={onClose}
-        >
-          ×
-        </button>
-      </div>
-    </div>
-  );
-}
+    <div className="fixed inset-0 z-40 flex items-center justify-center px-4 modal-backdrop">
+      <div className="relative z-10 bg-white w-full max-w-sm rounded-2xl shadow-xl p-6 text-center border">
+        <div className="text-red-600 text-5xl mb-3">⚠</div>
 
-/* -------------------- CONFIRM MODAL -------------------- */
+        <h2 className="text-xl font-semibold mb-2 text-slate-800">
+          Delete Room
+        </h2>
 
-function ConfirmModal({ open, message, onCancel, onConfirm, loading }) {
-  if (!open) return null;
+        <p className="text-slate-600 mb-5 leading-relaxed">{props.message}</p>
 
-  return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl p-6 w-full max-w-sm animate-scale-in">
-        <h3 className="text-lg font-semibold mb-3">Confirm Delete</h3>
-        <p className="text-sm text-gray-600 mb-5">{message}</p>
-
-        <div className="flex justify-end gap-3">
+        <div className="flex justify-center gap-3">
           <button
-            onClick={onCancel}
-            disabled={loading}
-            className="px-4 py-2 border rounded text-sm"
+            type="button"
+            onClick={props.onCancel}
+            className="px-4 py-2 rounded-lg border text-sm text-slate-700 hover:bg-slate-100"
           >
             Cancel
           </button>
           <button
-            onClick={onConfirm}
-            disabled={loading}
-            className="px-4 py-2 bg-red-600 text-white rounded text-sm"
+            type="button"
+            onClick={props.onConfirm}
+            className="px-4 py-2 rounded-lg text-sm text-white bg-red-600 hover:bg-red-700"
           >
-            {loading ? "Deleting..." : "Delete"}
+            Delete
           </button>
         </div>
       </div>
@@ -90,21 +74,18 @@ function ConfirmModal({ open, message, onCancel, onConfirm, loading }) {
   );
 }
 
-/* -------------------- PAGE -------------------- */
+export default function RoomManagementPage() {
+  var [rooms, setRooms] = useState([]);
+  var [loading, setLoading] = useState(true);
+  var [error, setError] = useState("");
 
-export default function RoomPage() {
-  const { user } = useAuth(); // expects user.role
+  var [search, setSearch] = useState("");
+  var [statusFilter, setStatusFilter] = useState("all");
+  var [typeFilter, setTypeFilter] = useState("all");
 
-  const [rooms, setRooms] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
-
-  const [showForm, setShowForm] = useState(false);
-  const [formMode, setFormMode] = useState("add");
-  const [formData, setFormData] = useState({
+  var [showForm, setShowForm] = useState(false);
+  var [formMode, setFormMode] = useState("add");
+  var [formData, setFormData] = useState({
     _id: null,
     number: "",
     type: "single",
@@ -112,53 +93,74 @@ export default function RoomPage() {
     pricePerMonth: "",
   });
 
-  const [saving, setSaving] = useState(false);
+  var [statusOpen, setStatusOpen] = useState(false);
+  var [statusType, setStatusType] = useState("success");
+  var [statusMessage, setStatusMessage] = useState("");
 
-  const [toast, setToast] = useState({ open: false });
+  var [deleteOpen, setDeleteOpen] = useState(false);
+  var [roomToDelete, setRoomToDelete] = useState(null);
 
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
-
-  /* -------------------- LOAD ROOMS -------------------- */
-
-  useEffect(() => {
-    console.log("Loading rooms...");
-    fetch(API_BASE + "/api/rooms", {
-      headers: getAuthHeaders(),
-    })
-      .then((r) => r.json())
-      .then((d) => {
-        console.log("Rooms data:", d);
-        setRooms(d.rooms || []);
-      })
-      .catch(() => showToast("error", "Failed to load rooms"))
-      .finally(() => setLoading(false));
-  }, []);
-
-  /* -------------------- FILTER -------------------- */
-
-  const filteredRooms = useMemo(() => {
-    return rooms.filter((r) => {
-      return (
-        (!search || r.number.includes(search)) &&
-        (typeFilter === "all" || r.type === typeFilter) &&
-        (statusFilter === "all" || r.status === statusFilter)
-      );
-    });
-  }, [rooms, search, typeFilter, statusFilter]);
-
-  /* -------------------- TOAST -------------------- */
-
-  function showToast(type, message) {
-    setToast({ open: true, type, message });
-    setTimeout(() => setToast({ open: false }), 3000);
+  function showStatus(type, message) {
+    setStatusType(type);
+    setStatusMessage(message);
+    setStatusOpen(true);
   }
 
-  /* -------------------- FORM -------------------- */
+  useEffect(function () {
+    loadRooms();
+  }, []);
 
-  function openAdd() {
-    console.log("Add clicked");
+  function loadRooms() {
+    setLoading(true);
+    setError("");
+
+    fetch(API_BASE + "/api/rooms", {
+      method: "GET",
+      headers: getAuthHeaders(false),
+    })
+      .then(function (res) {
+        return res.json();
+      })
+      .then(function (data) {
+        if (data && data.ok) {
+          setRooms(data.rooms || []);
+        } else {
+          setError(data && data.error ? data.error : "Failed to load rooms");
+        }
+      })
+      .catch(function () {
+        setError("Cannot reach server");
+      })
+      .finally(function () {
+        setLoading(false);
+      });
+  }
+
+  var filteredRooms = useMemo(
+    function () {
+      var text = (search || "").toLowerCase();
+
+      return (rooms || []).filter(function (r) {
+        var matchSearch =
+          !text ||
+          (r.number || "").toLowerCase().indexOf(text) !== -1 ||
+          (r.type || "").toLowerCase().indexOf(text) !== -1;
+
+        var matchStatus =
+          statusFilter === "all" ||
+          (r.status || "").toLowerCase() === statusFilter;
+
+        var matchType =
+          typeFilter === "all" ||
+          (r.type || "").toLowerCase() === typeFilter;
+
+        return matchSearch && matchStatus && matchType;
+      });
+    },
+    [rooms, search, statusFilter, typeFilter]
+  );
+
+  function openAddForm() {
     setFormMode("add");
     setFormData({
       _id: null,
@@ -170,213 +172,420 @@ export default function RoomPage() {
     setShowForm(true);
   }
 
-  function openEdit(room) {
-    console.log("Edit clicked", room);
+  function openEditForm(row) {
     setFormMode("edit");
     setFormData({
-      _id: room._id,
-      number: room.number,
-      type: room.type,
-      status: room.status,
-      pricePerMonth: room.pricePerMonth,
+      _id: row._id,
+      number: row.number || "",
+      type: row.type || "single",
+      status: row.status || "available",
+      pricePerMonth:
+        typeof row.pricePerMonth === "number"
+          ? String(row.pricePerMonth)
+          : row.pricePerMonth || "",
     });
     setShowForm(true);
   }
 
-  function submitForm(e) {
-    e.preventDefault();
-    setSaving(true);
-
-    var method = formMode === "add" ? "POST" : "PUT";
-    var url =
-      API_BASE +
-      "/api/rooms" +
-      (formMode === "edit" ? "/" + formData._id : "");
-
-    fetch(url, {
-      method,
-      headers: getAuthHeaders(true),
-      body: JSON.stringify(formData),
-    })
-      .then((r) => r.json())
-      .then(() => {
-        showToast("success", "Room saved successfully");
-        window.location.reload();
-      })
-      .catch(() => showToast("error", "Save failed"))
-      .finally(() => setSaving(false));
+  function handleFormChange(field, value) {
+    setFormData(function (prev) {
+      return Object.assign({}, prev, { [field]: value });
+    });
   }
 
-  /* -------------------- DELETE -------------------- */
+  function handleFormSubmit(e) {
+    e.preventDefault();
 
-  function confirmDelete(room) {
-    console.log("Delete clicked", room);
-    setDeleteTarget(room);
+    if (!formData.number || formData.pricePerMonth === "") {
+      showStatus("error", "Please enter room number and monthly price.");
+      return;
+    }
+
+    var payload = {
+      number: formData.number,
+      type: formData.type,
+      status: formData.status,
+      pricePerMonth: Number(formData.pricePerMonth),
+    };
+
+    if (formMode === "add") {
+      fetch(API_BASE + "/api/rooms", {
+        method: "POST",
+        headers: getAuthHeaders(true),
+        body: JSON.stringify(payload),
+      })
+        .then(function (res) {
+          return res.json();
+        })
+        .then(function (data) {
+          if (data && data.ok) {
+            setShowForm(false);
+            loadRooms();
+            showStatus("success", "Room created successfully.");
+          } else {
+            showStatus(
+              "error",
+              data && data.error ? data.error : "Failed to create room."
+            );
+          }
+        })
+        .catch(function () {
+          showStatus("error", "Server error while creating room.");
+        });
+    } else {
+      fetch(API_BASE + "/api/rooms/" + formData._id, {
+        method: "PUT",
+        headers: getAuthHeaders(true),
+        body: JSON.stringify(payload),
+      })
+        .then(function (res) {
+          return res.json();
+        })
+        .then(function (data) {
+          if (data && data.ok) {
+            setShowForm(false);
+            loadRooms();
+            showStatus("success", "Room updated successfully.");
+          } else {
+            showStatus(
+              "error",
+              data && data.error ? data.error : "Failed to update room."
+            );
+          }
+        })
+        .catch(function () {
+          showStatus("error", "Server error while updating room.");
+        });
+    }
+  }
+
+  function handleDelete(row) {
+    setRoomToDelete(row);
     setDeleteOpen(true);
   }
 
-  function doDelete() {
-    setDeleteLoading(true);
-    fetch(API_BASE + "/api/rooms/" + deleteTarget._id, {
-      method: "DELETE",
-      headers: getAuthHeaders(),
-    })
-      .then(() => {
-        showToast("success", "Room deleted");
-        window.location.reload();
-      })
-      .catch(() => showToast("error", "Delete failed"))
-      .finally(() => setDeleteLoading(false));
-  }
+  function handleConfirmDelete() {
+    if (!roomToDelete) {
+      setDeleteOpen(false);
+      return;
+    }
 
-  /* -------------------- RENDER -------------------- */
+    fetch(API_BASE + "/api/rooms/" + roomToDelete._id, {
+      method: "DELETE",
+      headers: getAuthHeaders(false),
+    })
+      .then(function (res) {
+        return res.json();
+      })
+      .then(function (data) {
+        if (data && data.ok) {
+          setRooms(function (prev) {
+            return prev.filter(function (r) {
+              return r._id !== roomToDelete._id;
+            });
+          });
+          showStatus("success", "Room deleted successfully.");
+        } else {
+          showStatus(
+            "error",
+            data && data.error ? data.error : "Failed to delete room."
+          );
+        }
+      })
+      .catch(function () {
+        showStatus("error", "Server error while deleting room.");
+      })
+      .finally(function () {
+        setDeleteOpen(false);
+        setRoomToDelete(null);
+      });
+  }
 
   return (
     <>
-      <Toast {...toast} onClose={() => setToast({ open: false })} />
+      <StatusModal
+        open={statusOpen}
+        type={statusType}
+        message={statusMessage}
+        onClose={function () {
+          setStatusOpen(false);
+        }}
+      />
 
       <ConfirmModal
         open={deleteOpen}
         message={
-          deleteTarget ? `Delete room ${deleteTarget.number}?` : ""
+          roomToDelete ? 'Delete room "' + roomToDelete.number + '"?' : ""
         }
-        loading={deleteLoading}
-        onCancel={() => setDeleteOpen(false)}
-        onConfirm={doDelete}
+        onCancel={function () {
+          setDeleteOpen(false);
+          setRoomToDelete(null);
+        }}
+        onConfirm={handleConfirmDelete}
       />
 
-      <main className="p-6 space-y-6">
-        <div className="flex justify-between items-center">
-          <p className="text-gray-600">
-            Manage room inventory, availability and pricing.
-          </p>
-          {user?.role === "Admin" && (
-            <button
-              onClick={openAdd}
-              className="bg-blue-600 text-white px-4 py-2 rounded"
-            >
-              + Add New Room
-            </button>
-          )}
+      <main className="p-4 sm:p-6 space-y-6 container-responsive">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm text-gray-600 mt-1">
+              Manage room inventory, availability and monthly pricing.
+            </p>
+          </div>
+
+          <button
+            onClick={openAddForm}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700 text-sm"
+          >
+            + Add New Room
+          </button>
         </div>
 
         <Card>
-          <div className="flex gap-3 mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <input
-              className="border px-3 py-2 rounded w-full"
-              placeholder="Search room..."
+              type="text"
+              placeholder="Search by room number or type..."
+              className="border px-3 py-2 rounded text-sm flex-1 min-w-[220px]"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={function (e) {
+                setSearch(e.target.value);
+              }}
             />
 
-            <select
-              className="border px-3 py-2 rounded"
-              onChange={(e) => setTypeFilter(e.target.value)}
-            >
-              <option value="all">All Types</option>
-              <option value="single">Single</option>
-              <option value="double">Double</option>
-            </select>
+            <div className="flex gap-3 flex-wrap">
+              <select
+                className="border px-3 py-2 rounded text-sm"
+                value={typeFilter}
+                onChange={function (e) {
+                  setTypeFilter(e.target.value);
+                }}
+              >
+                <option value="all">All Types</option>
+                <option value="single">Single</option>
+                <option value="double">Double</option>
+                <option value="dorm">Dorm</option>
+              </select>
 
-            <select
-              className="border px-3 py-2 rounded"
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="all">All Status</option>
-              <option value="available">Available</option>
-              <option value="occupied">Occupied</option>
-            </select>
+              <select
+                className="border px-3 py-2 rounded text-sm"
+                value={statusFilter}
+                onChange={function (e) {
+                  setStatusFilter(e.target.value);
+                }}
+              >
+                <option value="all">All Status</option>
+                <option value="available">Available</option>
+                <option value="occupied">Occupied</option>
+                <option value="maintenance">Maintenance</option>
+              </select>
+            </div>
           </div>
 
-          {loading ? (
-            <p>Loading...</p>
-          ) : (
-            <table className="w-full text-sm border">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="p-2 text-left">Room</th>
-                  <th>Type</th>
-                  <th>Status</th>
-                  <th>Price</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredRooms.map((r) => (
-                  <tr key={r._id} className="border-t">
-                    <td className="p-2">{r.number}</td>
-                    <td>{r.type}</td>
-                    <td><StatusBadge value={r.status} /></td>
-                    <td>₹{r.pricePerMonth}</td>
-                    <td className="space-x-2">
-                      {user?.role === "Admin" && (
-                        <>
+          {loading && (
+            <div className="px-3 py-6 text-sm text-gray-500">
+              Loading rooms…
+            </div>
+          )}
+
+          {!loading && error && (
+            <div className="px-3 py-4 text-sm text-red-600">{error}</div>
+          )}
+
+          {!loading && !error && (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm border-t border-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-semibold">
+                      Room No
+                    </th>
+                    <th className="text-left px-3 py-2 font-semibold">Type</th>
+                    <th className="text-left px-3 py-2 font-semibold">
+                      Status
+                    </th>
+                    <th className="text-right px-3 py-2 font-semibold">
+                      Price / Month
+                    </th>
+                    <th className="text-center px-3 py-2 font-semibold">
+                      Occupants
+                    </th>
+                    <th className="text-left px-3 py-2 font-semibold">
+                      Created At
+                    </th>
+                    <th className="text-right px-3 py-2 font-semibold">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRooms.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan="7"
+                        className="px-3 py-4 text-center text-gray-500"
+                      >
+                        No rooms found.
+                      </td>
+                    </tr>
+                  )}
+
+                  {filteredRooms.map(function (row) {
+                    return (
+                      <tr key={row._id} className="border-t">
+                        <td className="px-3 py-2">{row.number}</td>
+                        <td className="px-3 py-2 capitalize">
+                          {row.type || "-"}
+                        </td>
+                        <td className="px-3 py-2">
+                          <RoomStatusBadge value={row.status} />
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          ₹
+                          {typeof row.pricePerMonth === "number"
+                            ? row.pricePerMonth.toLocaleString("en-IN")
+                            : row.pricePerMonth || "-"}
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          {Array.isArray(row.occupants)
+                            ? row.occupants.length
+                            : 0}
+                        </td>
+                        <td className="px-3 py-2 text-gray-600">
+                          {row.createdAt
+                            ? new Date(row.createdAt).toLocaleDateString()
+                            : "—"}
+                        </td>
+                        <td className="px-3 py-2 text-right space-x-2">
                           <button
-                            onClick={() => openEdit(r)}
-                            className="text-blue-600"
+                            onClick={function () {
+                              openEditForm(row);
+                            }}
+                            className="text-blue-600 hover:underline text-xs"
                           >
                             Edit
                           </button>
                           <button
-                            onClick={() => confirmDelete(r)}
-                            className="text-red-600"
+                            onClick={function () {
+                              handleDelete(row);
+                            }}
+                            className="text-red-600 hover:underline text-xs"
                           >
                             Delete
                           </button>
-                        </>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </Card>
 
         {showForm && (
-          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-40">
-            <form
-              onSubmit={submitForm}
-              className="bg-white p-6 rounded-xl w-full max-w-md animate-scale-in"
-            >
-              <h3 className="text-lg font-semibold mb-4">
-                {formMode === "add" ? "Add Room" : "Edit Room"}
-              </h3>
-
-              <input
-                className="border w-full mb-3 px-3 py-2 rounded"
-                placeholder="Room Number"
-                value={formData.number}
-                onChange={(e) =>
-                  setFormData({ ...formData, number: e.target.value })
-                }
-              />
-
-              <input
-                className="border w-full mb-3 px-3 py-2 rounded"
-                placeholder="Price"
-                value={formData.pricePerMonth}
-                onChange={(e) =>
-                  setFormData({ ...formData, pricePerMonth: e.target.value })
-                }
-              />
-
-              <div className="flex justify-end gap-3">
+          <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-20">
+            <div className="bg-white rounded-lg shadow-lg w-full max-w-xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-semibold">
+                  {formMode === "add" ? "Add New Room" : "Edit Room"}
+                </h3>
                 <button
-                  type="button"
-                  onClick={() => setShowForm(false)}
-                  className="border px-4 py-2 rounded"
+                  onClick={function () {
+                    setShowForm(false);
+                  }}
+                  className="text-gray-500 hover:text-gray-700 text-lg"
                 >
-                  Cancel
-                </button>
-                <button
-                  disabled={saving}
-                  className="bg-blue-600 text-white px-4 py-2 rounded"
-                >
-                  {saving ? "Saving..." : "Save"}
+                  ×
                 </button>
               </div>
-            </form>
+
+              <form onSubmit={handleFormSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Room Number
+                    </label>
+                    <input
+                      type="text"
+                      className="border px-3 py-2 rounded w-full text-sm"
+                      value={formData.number}
+                      onChange={function (e) {
+                        handleFormChange("number", e.target.value);
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Room Type
+                    </label>
+                    <select
+                      className="border px-3 py-2 rounded w-full text-sm"
+                      value={formData.type}
+                      onChange={function (e) {
+                        handleFormChange("type", e.target.value);
+                      }}
+                    >
+                      <option value="single">Single</option>
+                      <option value="double">Double</option>
+                      <option value="dorm">Dorm</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Monthly Price (₹)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="border px-3 py-2 rounded w-full text-sm"
+                      value={formData.pricePerMonth}
+                      onChange={function (e) {
+                        handleFormChange("pricePerMonth", e.target.value);
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Status
+                    </label>
+                    <select
+                      className="border px-3 py-2 rounded w-full text-sm"
+                      value={formData.status}
+                      onChange={function (e) {
+                        handleFormChange("status", e.target.value);
+                      }}
+                    >
+                      <option value="available">Available</option>
+                      <option value="occupied">Occupied</option>
+                      <option value="maintenance">Maintenance</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={function () {
+                      setShowForm(false);
+                    }}
+                    className="px-4 py-2 border rounded text-sm"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-600 text-white rounded text-sm"
+                  >
+                    {formMode === "add" ? "Create Room" : "Save Changes"}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
       </main>
