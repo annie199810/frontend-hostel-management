@@ -1,7 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { ShieldCheck, Home, Users, CreditCard, Wrench, BarChart2 } from "lucide-react";
-
+//fade
 const fadeIn = {
   hidden: { opacity: 0, y: 8 },
   show: { opacity: 1, y: 0 },
