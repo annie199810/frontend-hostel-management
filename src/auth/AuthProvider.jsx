@@ -17,8 +17,7 @@ export default function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [ready, setReady] = useState(false);
 
-  
-  const [token, setToken] = useState(() => {
+  const [token, setToken] = useState(function () {
     try {
       return localStorage.getItem("token") || "";
     } catch {
@@ -26,19 +25,17 @@ export default function AuthProvider({ children }) {
     }
   });
 
-  useEffect(() => {
-    let cancelled = false;
+  
+  useEffect(function () {
+    var cancelled = false;
 
-    (async () => {
+    (async function () {
       setReady(false);
 
-      const storedToken = (() => {
-        try {
-          return localStorage.getItem("token");
-        } catch {
-          return null;
-        }
-      })();
+      var storedToken = null;
+      try {
+        storedToken = localStorage.getItem("token");
+      } catch (e) {}
 
       if (!storedToken) {
         if (!cancelled) {
@@ -50,11 +47,13 @@ export default function AuthProvider({ children }) {
       }
 
       try {
-        const data = await apiMe(storedToken);
+        var data = await apiMe(storedToken);
+
         if (!cancelled && data && data.ok && data.user) {
           setUser(data.user);
           setToken(storedToken);
         } else {
+        
           try { localStorage.removeItem("token"); } catch (e) {}
           if (!cancelled) {
             setUser(null);
@@ -62,32 +61,35 @@ export default function AuthProvider({ children }) {
           }
         }
       } catch (err) {
+      
         console.warn("AuthProvider: token validation failed:", err);
-        try { localStorage.removeItem("token"); } catch (e) {}
         if (!cancelled) {
           setUser(null);
-          setToken("");
         }
       } finally {
-        if (!cancelled) setReady(true);
+        if (!cancelled) {
+          setReady(true);
+        }
       }
     })();
 
-    return () => {
+    return function () {
       cancelled = true;
     };
   }, []);
 
-  const login = useCallback(async ({ email, password }) => {
+  
+  const login = useCallback(async function ({ email, password }) {
     try {
-      const data = await apiLogin(email, password);
+      var data = await apiLogin(email, password);
 
       if (data && data.ok && data.token) {
         try {
           localStorage.setItem("token", data.token);
         } catch (e) {}
-        setToken(data.token);            
-        setUser(data.user || null);      
+
+        setToken(data.token);
+        setUser(data.user || null);
       }
 
       return data;
@@ -100,47 +102,62 @@ export default function AuthProvider({ children }) {
     }
   }, []);
 
-  const register = useCallback(
-    async (creds, options = { autoLogin: true }) => {
-      try {
-        const data = await apiRegister(creds.name, creds.email, creds.password);
+  
+  const register = useCallback(async function (
+    creds,
+    options = { autoLogin: true }
+  ) {
+    try {
+      var data = await apiRegister(
+        creds.name,
+        creds.email,
+        creds.password
+      );
 
-        if (options && options.autoLogin === false) {
-          try {
-            localStorage.removeItem("token");
-          } catch (e) {}
-          setToken("");
-          return data;
-        }
-
-        if (data && data.ok && data.token) {
-          try {
-            localStorage.setItem("token", data.token);
-          } catch (e) {}
-          setToken(data.token);         
-          setUser(data.user || null);
-        }
-
+      if (options && options.autoLogin === false) {
+        try { localStorage.removeItem("token"); } catch (e) {}
+        setToken("");
         return data;
-      } catch (err) {
-        console.error("AuthProvider.register error:", err);
-        return {
-          ok: false,
-          error: err?.error || err?.message || "Registration failed",
-        };
       }
-    },
-    []
-  );
 
+      if (data && data.ok && data.token) {
+        try {
+          localStorage.setItem("token", data.token);
+        } catch (e) {}
+
+        setToken(data.token);
+        setUser(data.user || null);
+      }
+
+      return data;
+    } catch (err) {
+      console.error("AuthProvider.register error:", err);
+      return {
+        ok: false,
+        error: err?.error || err?.message || "Registration failed",
+      };
+    }
+  }, []);
+
+  
   function logout() {
     try { localStorage.removeItem("token"); } catch (e) {}
     setUser(null);
     setToken("");
   }
 
- 
-  const value = { user, ready, login, register, logout, token };
+  const value = {
+    user,
+    ready,
+    token,
+    login,
+    register,
+    logout,
+  };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 }

@@ -1,6 +1,5 @@
 import { API_BASE } from "./config";
 
-
 export async function apiGetUsers() {
   const token = localStorage.getItem("token");
 
@@ -14,7 +13,6 @@ export async function apiGetUsers() {
 
   return res.json();
 }
-
 
 export async function apiCreateUser(data) {
   const token = localStorage.getItem("token");
@@ -31,7 +29,6 @@ export async function apiCreateUser(data) {
   return res.json();
 }
 
-
 export async function apiUpdateUser(id, data) {
   const token = localStorage.getItem("token");
 
@@ -46,7 +43,6 @@ export async function apiUpdateUser(id, data) {
 
   return res.json();
 }
-
 
 export async function apiDeleteUser(id) {
   const token = localStorage.getItem("token");
