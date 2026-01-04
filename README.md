@@ -2,7 +2,7 @@
 
 This repository contains the frontend application of the Hostel Management System, built using React (Vite) and Tailwind CSS.
 
-The application provides a modern, responsive, and role-based UI for managing hostel operations such as rooms, residents, maintenance, billing, payments, reports, and users.
+The application provides a modern, responsive, and role-based user interface for managing hostel operations such as rooms, residents, maintenance, billing, payments, reports, and users.
 
 🚀 Live Application (Frontend)
 
@@ -11,15 +11,18 @@ https://hostelmanagementtt.netlify.app
 
 🔐 Demo Credentials (For Evaluation)
 👑 Admin Account
+
 Email: admin@hostel.com
+
 Password: admin123
 
 👷 Staff Account
+
 Email: staff@hostel.com
+
 Password: staff123
 
 🔎 Role Behavior
-
 Admin
 
 Full access to all modules
@@ -45,6 +48,14 @@ Protected routes (unauthorized users redirected to Login)
 
 Role-based UI (Admin vs Staff)
 
+🔁 Session Persistence
+
+User session persists across browser refresh
+
+On refresh, the frontend validates the token using the backend /api/auth/me endpoint
+
+If the token is valid, the user session is restored automatically
+
 🏠 Room Management
 
 Add / Edit / Delete rooms
@@ -59,11 +70,14 @@ Maintenance
 
 Automatic occupancy updates based on resident allocation
 
+Basic room availability and occupancy checks implemented
+(Advanced concurrency handling can be added as a future enhancement)
+
 👤 Resident Management
 
 Add / Edit / Delete residents
 
-Auto room assignment
+Automatic room assignment
 
 Check-in date handling
 
@@ -89,7 +103,7 @@ Medium
 
 Low
 
-💳 Billing & Payments
+💳 Billing & Payments (Demo / Simulated)
 
 Create and manage bills
 
@@ -102,6 +116,10 @@ Payment status update (Pending → Paid)
 Invoice number, due date, and notes
 
 Disabled actions for paid invoices
+
+Note:
+Payment functionality is simulated for demo purposes.
+Real payment gateway integrations (Razorpay / Stripe) can be added as a future enhancement.
 
 📊 Dashboard & Reports
 
@@ -179,7 +197,7 @@ Create a .env file in the root directory:
 VITE_API_BASE_URL=http://localhost:5000
 
 
-For deployed backend (Netlify):
+For deployed backend:
 
 VITE_API_BASE_URL=https://backend-hostel-management.onrender.com
 
@@ -243,12 +261,17 @@ All protected API requests include:
 Authorization: Bearer <token>
 
 
-If token is missing or invalid → redirect to Login page
+If the token is missing or invalid → user is redirected to Login page
 
 🧪 Scripts
 npm run dev       # Start frontend locally
 npm run build     # Build production files
 npm run preview   # Preview production build
+
+📌 Project Scope
+
+This project focuses on clean UI, role-based access control, and core hostel management workflows.
+Advanced features such as real payment gateway integration and room booking concurrency locks are intentionally kept as future enhancements.
 
 🧹 Notes
 
