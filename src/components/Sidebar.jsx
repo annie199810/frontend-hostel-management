@@ -53,10 +53,10 @@ export default function Sidebar({
         {!collapsed && (
           <div className="overflow-hidden">
             <div className="text-sm font-semibold leading-tight truncate">
-              {user?.name || "Admin User"}
+              {user?.name || ""}
             </div>
             <div className="text-[11px] text-slate-300 leading-tight mt-0.5">
-              {user?.role || "Administrator"}
+              {user?.role || ""}
             </div>
           </div>
         )}
