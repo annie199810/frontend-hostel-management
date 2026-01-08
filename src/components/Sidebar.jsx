@@ -47,7 +47,7 @@ export default function Sidebar({
       
       <div className="px-4 py-5 border-b border-[#122033] flex items-center gap-3">
         <div className="h-10 w-10 rounded-full bg-indigo-500 flex items-center justify-center text-white font-semibold shadow-sm">
-          {(user?.name?.[0] || "A").toUpperCase()}
+          {(user?.role === "Staff" ? "S" : "A")}
         </div>
 
         {!collapsed && (
@@ -56,7 +56,7 @@ export default function Sidebar({
               {user?.name || ""}
             </div>
             <div className="text-[11px] text-slate-300 leading-tight mt-0.5">
-              {user?.role || ""}
+           {user?.role === "Staff" ? "Demo Staff" : user?.role}
             </div>
           </div>
         )}

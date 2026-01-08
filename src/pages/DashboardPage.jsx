@@ -86,12 +86,12 @@ export default function DashboardPage() {
  
   return (
     <main className="p-6 space-y-6 bg-gray-50 min-h-screen">
-      <StatusModal
-        open={welcomeOpen}
-        type="success"
-        message={`Welcome ${user?.name || "Admin"}`}
-        onClose={() => setWelcomeOpen(false)}
-      />
+    <StatusModal
+  open={welcomeOpen}
+  type="success"
+  message={user?.role === "Staff" ? "Welcome Staff" : "Welcome Admin"}
+  onClose={() => setWelcomeOpen(false)}
+/>
 
       <div>       
         <p className="text-sm text-gray-500">
