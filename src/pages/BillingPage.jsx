@@ -4,6 +4,32 @@ import StatusModal from "../components/StatusModal";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
+function openRazorpay(amount, onSuccess, onFailure) {
+  if (!window.Razorpay) {
+    alert("Razorpay SDK not loaded");
+    return;
+  }
+
+  const options = {
+    key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+    amount: Number(amount) * 100, // paise
+    currency: "INR",
+    name: "Hostel Management System",
+    description: "Room Rent Payment",
+    handler: function (response) {
+      onSuccess && onSuccess(response);
+    },
+    modal: {
+      ondismiss: function () {
+        onFailure && onFailure();
+      },
+    },
+    theme: { color: "#4f46e5" },
+  };
+
+  const rzp = new window.Razorpay(options);
+  rzp.open();
+}
 
 function pad(n) {
   return String(n).padStart(2, "0");
@@ -370,18 +396,42 @@ export default function BillingPage() {
 
     const method = methodOverride || paymentMethod || "Mock";
 
-    if (method === "Card") {
-      if (!authorize) {
-        showError(
-          "Please authorise this payment by selecting the confirmation checkbox."
-        );
-        return;
+    
+if (method === "Card" || method === "UPI") {
+  openRazorpay(
+    payNowTarget.amount,
+    async function (rzpResponse) {
+      try {
+        const updated = await markAsPaid(payNowTarget._id);
+
+        setPayments(function (prev) {
+          return prev.map(function (p) {
+            if (p._id !== payNowTarget._id) return p;
+            return Object.assign({}, p, {
+              status: "Paid",
+              paidOn:
+                (updated && updated.paidOn) ||
+                new Date().toISOString().slice(0, 10),
+              method: "Razorpay",
+            });
+          });
+        });
+
+        showSuccess("Payment successful via Razorpay 🎉");
+        setPayNowOpen(false);
+        setPayNowTarget(null);
+      } catch (e) {
+        showError("Payment succeeded but update failed.");
       }
-      if (!cardNumber || !expiry || !cvv || !cardName) {
-        showError("Please complete all card details before proceeding.");
-        return;
-      }
+    },
+    function () {
+      showError("Payment cancelled.");
     }
+  );
+
+  return; 
+}
+
 
     setPayNowProcessing(true);
 
