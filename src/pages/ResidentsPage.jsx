@@ -4,8 +4,7 @@ import StatusModal from "../components/StatusModal";
 
 var API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
-
-
+/* -------------------- AUTH HEADER -------------------- */
 function getAuthHeaders(includeJson) {
   var headers = {};
   var token = null;
@@ -20,6 +19,7 @@ function getAuthHeaders(includeJson) {
   return headers;
 }
 
+/* -------------------- STATUS BADGE -------------------- */
 function StatusBadge({ value }) {
   var active = (value || "active").toLowerCase() !== "inactive";
 
@@ -37,6 +37,7 @@ function StatusBadge({ value }) {
   );
 }
 
+/* -------------------- CONFIRM MODAL -------------------- */
 function ConfirmModal(props) {
   if (!props.open) return null;
 
@@ -70,10 +71,10 @@ function ConfirmModal(props) {
   );
 }
 
-
-
+/* ==================== MAIN PAGE ==================== */
 export default function ResidentsPage() {
   var [items, setItems] = useState([]);
+  var [availableRooms, setAvailableRooms] = useState([]);
   var [loading, setLoading] = useState(true);
   var [error, setError] = useState("");
 
@@ -82,12 +83,14 @@ export default function ResidentsPage() {
 
   var [showForm, setShowForm] = useState(false);
   var [formMode, setFormMode] = useState("add");
+
   var [formData, setFormData] = useState({
     _id: null,
     name: "",
     roomNumber: "",
     phone: "",
     status: "active",
+    expectedCheckout: "",
   });
 
   var [statusOpen, setStatusOpen] = useState(false);
@@ -103,10 +106,10 @@ export default function ResidentsPage() {
     setStatusOpen(true);
   }
 
- 
-
+  /* -------------------- LOAD DATA -------------------- */
   useEffect(function () {
     loadResidents();
+    loadAvailableRooms();
   }, []);
 
   function loadResidents() {
@@ -114,7 +117,7 @@ export default function ResidentsPage() {
     setError("");
 
     fetch(API_BASE + "/api/residents", {
-      headers: getAuthHeaders(false),
+      headers: getAuthHeaders(true),
     })
       .then((r) => r.json())
       .then((data) => {
@@ -125,8 +128,18 @@ export default function ResidentsPage() {
       .finally(() => setLoading(false));
   }
 
-  
+  function loadAvailableRooms() {
+    fetch(API_BASE + "/api/rooms/available", {
+      headers: getAuthHeaders(true),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && data.ok) setAvailableRooms(data.rooms || []);
+      })
+      .catch(() => {});
+  }
 
+  /* -------------------- FILTER -------------------- */
   var filteredItems = useMemo(
     function () {
       var text = search.toLowerCase();
@@ -148,8 +161,7 @@ export default function ResidentsPage() {
     [items, search, statusFilter]
   );
 
-  
-
+  /* -------------------- FORM HANDLERS -------------------- */
   function openAddForm() {
     setFormMode("add");
     setFormData({
@@ -158,6 +170,7 @@ export default function ResidentsPage() {
       roomNumber: "",
       phone: "",
       status: "active",
+      expectedCheckout: "",
     });
     setShowForm(true);
   }
@@ -170,12 +183,17 @@ export default function ResidentsPage() {
       roomNumber: row.roomNumber,
       phone: row.phone,
       status: row.status || "active",
+      expectedCheckout: row.expectedCheckout
+      ? row.expectedCheckout.slice(0, 10)
+      : "",
     });
     setShowForm(true);
   }
 
   function handleFormChange(k, v) {
-    setFormData((p) => ({ ...p, [k]: v }));
+    setFormData(function (p) {
+      return { ...p, [k]: v };
+    });
   }
 
   function handleFormSubmit(e) {
@@ -191,6 +209,7 @@ export default function ResidentsPage() {
       roomNumber: formData.roomNumber,
       phone: formData.phone,
       status: formData.status,
+      expectedCheckout: formData.expectedCheckout,
     };
 
     var url =
@@ -208,6 +227,7 @@ export default function ResidentsPage() {
         if (data && data.ok) {
           setShowForm(false);
           loadResidents();
+          loadAvailableRooms();
           showStatus(
             "success",
             formMode === "add"
@@ -221,8 +241,7 @@ export default function ResidentsPage() {
       .catch(() => showStatus("error", "Server error"));
   }
 
- 
-
+  /* -------------------- DELETE -------------------- */
   function handleDelete(row) {
     setResidentToDelete(row);
     setDeleteOpen(true);
@@ -231,25 +250,29 @@ export default function ResidentsPage() {
   function confirmDelete() {
     fetch(API_BASE + "/api/residents/" + residentToDelete._id, {
       method: "DELETE",
-      headers: getAuthHeaders(false),
+      headers: getAuthHeaders(true),
     })
       .then((r) => r.json())
       .then((data) => {
         if (data && data.ok) {
-          setItems((p) => p.filter((x) => x._id !== residentToDelete._id));
+          setItems(function (p) {
+            return p.filter(function (x) {
+              return x._id !== residentToDelete._id;
+            });
+          });
+          loadAvailableRooms();
           showStatus("success", "Resident deleted");
         } else {
           showStatus("error", data.error || "Delete failed");
         }
       })
-      .finally(() => {
+      .finally(function () {
         setDeleteOpen(false);
         setResidentToDelete(null);
       });
   }
 
- 
-
+  /* ==================== UI ==================== */
   return (
     <>
       <StatusModal
@@ -271,69 +294,40 @@ export default function ResidentsPage() {
       />
 
       <main className="p-4 sm:p-6 space-y-6">
-        {/* header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>          
-            <p className="text-sm text-gray-500">
-              Manage hostel residents & room allocation
-            </p>
-          </div>
-
+        <div className="flex justify-between">
+          <p className="text-sm text-gray-500">
+            Manage hostel residents & room allocation
+          </p>
           <button
             onClick={openAddForm}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg shadow-sm hover:bg-blue-700 text-sm"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm"
           >
             + Add Resident
           </button>
         </div>
 
         <Card>
-     
-          <div className="flex flex-col sm:flex-row gap-3 mb-4">
-            <input
-              className="border px-4 py-2 rounded-lg text-sm flex-1"
-              placeholder="Search name, room or phone"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+          <input
+            className="border px-4 py-2 rounded-lg text-sm w-full mb-4"
+            placeholder="Search name, room or phone"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
 
-            <select
-              className="border px-3 py-2 rounded-lg text-sm w-full sm:w-40"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </div>
-
-      
-          <div className="overflow-x-auto rounded-xl border">
-            <table className="min-w-full text-sm">
-              <thead className="bg-gray-100 text-gray-700">
-                <tr>
-                  <th className="px-4 py-3 text-left">Name</th>
-                  <th className="px-4 py-3 text-left">Room</th>
-                  <th className="px-4 py-3 text-left">Phone</th>
-                  <th className="px-4 py-3 text-left">Status</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredItems.length === 0 && (
-                  <tr>
-                    <td colSpan="5" className="py-10 text-center text-gray-500">
-                      No residents found
-                    </td>
-                  </tr>
-                )}
-
-                {filteredItems.map((r) => (
-                  <tr
-                    key={r._id}
-                    className="border-t hover:bg-gray-50 transition"
-                  >
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-100">
+              <tr>
+                <th className="px-4 py-3 text-left">Name</th>
+                <th className="px-4 py-3 text-left">Room</th>
+                <th className="px-4 py-3 text-left">Phone</th>
+                <th className="px-4 py-3 text-left">Status</th>
+                <th className="px-4 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredItems.map(function (r) {
+                return (
+                  <tr key={r._id} className="border-t">
                     <td className="px-4 py-3">{r.name}</td>
                     <td className="px-4 py-3">{r.roomNumber}</td>
                     <td className="px-4 py-3">{r.phone}</td>
@@ -341,33 +335,30 @@ export default function ResidentsPage() {
                       <StatusBadge value={r.status} />
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <div className="flex justify-end gap-3">
-                        <button
-                          onClick={() => openEditForm(r)}
-                          className="text-blue-600 hover:text-blue-800 text-sm"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(r)}
-                          className="text-red-600 hover:text-red-800 text-sm"
-                        >
-                          Delete
-                        </button>
-                      </div>
+                      <button
+                        className="text-blue-600 mr-3"
+                        onClick={() => openEditForm(r)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="text-red-600"
+                        onClick={() => handleDelete(r)}
+                      >
+                        Delete
+                      </button>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                );
+              })}
+            </tbody>
+          </table>
         </Card>
 
-       
         {showForm && (
-          <div className="fixed inset-0 modal-backdrop flex items-center justify-center z-20">
-            <div className="bg-white w-full max-w-lg rounded-xl shadow-lg p-6">
-              <h3 className="text-xl font-semibold mb-4">
+          <div className="fixed inset-0 modal-backdrop flex items-center justify-center">
+            <div className="bg-white w-full max-w-lg rounded-xl p-6">
+              <h3 className="text-xl mb-4">
                 {formMode === "add" ? "Add Resident" : "Edit Resident"}
               </h3>
 
@@ -381,14 +372,40 @@ export default function ResidentsPage() {
                   }
                 />
 
-                <input
-                  className="border px-3 py-2 rounded w-full"
-                  placeholder="Room Number"
-                  value={formData.roomNumber}
-                  onChange={(e) =>
-                    handleFormChange("roomNumber", e.target.value)
-                  }
-                />
+              <select
+  className="border px-3 py-2 rounded w-full"
+  value={formData.roomNumber}
+  onChange={(e) =>
+    handleFormChange("roomNumber", e.target.value)
+  }
+>
+  <option value="">Select Available Room</option>
+
+  {[...availableRooms]
+    .concat(
+      formMode === "edit" &&
+        !availableRooms.some(
+          (r) => r.number === formData.roomNumber
+        )
+        ? items
+            .map((r) => r.roomNumber)
+            .filter((n) => n === formData.roomNumber)
+            .map((n) => ({
+              number: n,
+              type: "Occupied",
+              ac: "",
+              _id: "current",
+            }))
+        : []
+    )
+    .map((room) => (
+      <option key={room._id || room.number} value={room.number}>
+        Room {room.number} ({room.type} {room.ac && "/ " + room.ac})
+      </option>
+    ))}
+</select>
+
+
 
                 <input
                   className="border px-3 py-2 rounded w-full"
@@ -396,6 +413,18 @@ export default function ResidentsPage() {
                   value={formData.phone}
                   onChange={(e) =>
                     handleFormChange("phone", e.target.value)
+                  }
+                />
+
+                <input
+                  type="date"
+                  className="border px-3 py-2 rounded w-full"
+                 value={formData.expectedCheckout || ""}
+                  onChange={(e) =>
+                    handleFormChange(
+                      "expectedCheckout",
+                      e.target.value
+                    )
                   }
                 />
 
@@ -410,7 +439,7 @@ export default function ResidentsPage() {
                   <option value="inactive">Inactive</option>
                 </select>
 
-                <div className="flex justify-end gap-3 pt-2">
+                <div className="flex justify-end gap-3">
                   <button
                     type="button"
                     onClick={() => setShowForm(false)}

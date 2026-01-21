@@ -52,7 +52,8 @@ Role-based UI (Admin vs Staff)
 
 User session persists across browser refresh
 
-On refresh, the frontend validates the token using the backend /api/auth/me endpoint
+On refresh, the frontend validates the token using the backend
+/api/auth/me endpoint
 
 If the token is valid, the user session is restored automatically
 
@@ -70,24 +71,39 @@ Maintenance
 
 Automatic occupancy updates based on resident allocation
 
+Room status is controlled and synchronized with backend enums:
+Available → Occupied → Available / Maintenance
+
+Rooms cannot be assigned to multiple residents at the same time
+
 Basic room availability and occupancy checks implemented
 (Advanced concurrency handling can be added as a future enhancement)
 
-👤 Resident Management
+👤 Resident Management 
 
 Add / Edit / Delete residents
 
-Automatic room assignment
+Assign residents to rooms
 
-Check-in date handling
+Track resident status (Active / Inactive)
 
-Room occupancy sync when residents change rooms
+Automatic room status update:
 
-🔧 Maintenance Requests
+Room becomes Occupied when a resident is added
 
-Create / Update / Delete maintenance requests
+Room becomes Available when resident is removed or deactivated
 
-Track status:
+Prevents incorrect room allocation
+
+🔧 Maintenance Management (Frontend)
+
+Raise maintenance requests for rooms
+
+Track issue type (Electrical / Plumbing / Others)
+
+Set priority (High / Medium / Low)
+
+Update request status:
 
 Open
 
@@ -95,15 +111,9 @@ In Progress
 
 Closed
 
-Priority levels:
+Helps staff track and resolve hostel issues efficiently
 
-High
-
-Medium
-
-Low
-
-💳 Billing & Payments (Demo / Simulated)
+💳 Billing & Payments
 
 Create and manage bills
 
@@ -111,15 +121,15 @@ Edit & delete bills
 
 “Pay Now” option
 
+Razorpay payment gateway integration (Test Mode)
+
 Payment status update (Pending → Paid)
 
 Invoice number, due date, and notes
 
 Disabled actions for paid invoices
 
-Note:
-Payment functionality is simulated for demo purposes.
-Real payment gateway integrations (Razorpay / Stripe) can be added as a future enhancement.
+ℹ️ Razorpay is integrated in test mode for evaluation purposes.
 
 📊 Dashboard & Reports
 
@@ -223,7 +233,6 @@ src/
 │   └─ ProtectedRoute.jsx
 │
 ├─ components/
-│   ├─ AddPaymentModal.jsx
 │   ├─ Card.jsx
 │   ├─ LoginPage.jsx
 │   ├─ RegisterPage.jsx
@@ -261,7 +270,7 @@ All protected API requests include:
 Authorization: Bearer <token>
 
 
-If the token is missing or invalid → user is redirected to Login page
+If token is missing or invalid → user is redirected to Login page
 
 🧪 Scripts
 npm run dev       # Start frontend locally
@@ -271,17 +280,7 @@ npm run preview   # Preview production build
 📌 Project Scope
 
 This project focuses on clean UI, role-based access control, and core hostel management workflows.
-Advanced features such as real payment gateway integration and room booking concurrency locks are intentionally kept as future enhancements.
-
-🧹 Notes
-
-No external UI libraries used (only Tailwind CSS)
-
-Fully responsive UI
-
-Clean separation of Admin and Staff roles
-
-No company or brand names included (GUVI requirement compliant)
+Advanced features such as payment gateway live mode and concurrency locking are intentionally kept as future enhancements.
 
 🔗 Related Repository
 
