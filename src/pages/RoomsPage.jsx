@@ -86,26 +86,42 @@ export default function RoomManagementPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  function saveRoom(e) {
-    e.preventDefault();
-    const url = editMode
-      ? API_BASE + "/api/rooms/" + form._id
-      : API_BASE + "/api/rooms";
-    const method = editMode ? "PUT" : "POST";
+ function saveRoom(e) {
+  e.preventDefault();
 
-    fetch(url, {
-      method,
-      headers: getAuthHeaders(true),
-      body: JSON.stringify(form),
-    }).then(() => {
+  const url = editMode
+    ? API_BASE + "/api/rooms/" + form._id
+    : API_BASE + "/api/rooms";
+
+  const method = editMode ? "PUT" : "POST";
+
+  fetch(url, {
+    method,
+    headers: getAuthHeaders(true),
+    body: JSON.stringify(form),
+  })
+    .then((r) => r.json())
+    .then((data) => {
+      // 🚫 ERROR FROM BACKEND
+      if (data.ok === false) {
+        alert(data.error); // 👈 SHOW DUPLICATE ALERT
+        return;
+      }
+
+      // ✅ SUCCESS
       setShowForm(false);
       setToast(true);
       setTimeout(() => setToast(false), 2500);
+
       fetch(API_BASE + "/api/rooms", { headers: getAuthHeaders() })
         .then((r) => r.json())
         .then((d) => setRooms(d.rooms));
+    })
+    .catch(() => {
+      alert("Something went wrong. Please try again.");
     });
-  }
+}
+
 
   function confirmDelete() {
     fetch(API_BASE + "/api/rooms/" + deleteRoom._id, {
