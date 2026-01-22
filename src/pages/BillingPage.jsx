@@ -697,9 +697,35 @@ if (method === "Card" || method === "UPI") {
     setShowView(true);
   }
 
-  function sendReminder() {
-    showSuccess("A payment reminder has been noted for this resident.");
+ async function sendReminder(p) {
+  if (!p || !p._id) {
+    showError("Invalid payment record.");
+    return;
   }
+
+  try {
+    const res = await fetch(
+      API_BASE + "/api/payments/" + p._id + "/remind",
+      {
+        method: "PATCH",
+        headers: withAuth({ "Content-Type": "application/json" }),
+      }
+    );
+
+    const data = await res.json();
+
+    if (!res.ok || data.ok === false) {
+      showError(data.error || "Reminder could not be sent.");
+      return;
+    }
+
+    showSuccess("Payment reminder sent successfully.");
+  } catch (err) {
+    console.error("sendReminder err", err);
+    showError("Failed to send reminder. Please try again.");
+  }
+}
+
 
 
   return (
@@ -839,7 +865,7 @@ if (method === "Card" || method === "UPI") {
                 {filtered.map(function (p) {
                   const isPaid = p.status === "Paid";
                   const isPending = p.status === "Pending";
-
+const reminderSent = p.lastReminderAt;
                   return (
                     <tr key={p._id} className="border-b">
                       <td className="px-3 py-3 max-w-[220px]">
@@ -922,14 +948,23 @@ if (method === "Card" || method === "UPI") {
                             Delete
                           </button>
 
-                          <button
-                            onClick={function () {
-                              sendReminder();
-                            }}
-                            className="px-2 py-1 text-xs bg-amber-50 text-amber-700 rounded"
-                          >
-                            Remind
-                          </button>
+                          {isPending && (
+  <button
+    onClick={function () {
+      sendReminder(p);
+    }}
+    disabled={reminderSent}
+    className={
+      "px-2 py-1 text-xs rounded " +
+      (reminderSent
+        ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+        : "bg-amber-50 text-amber-700")
+    }
+  >
+    {reminderSent ? "Reminded" : "Remind"}
+  </button>
+)}
+
                         </div>
                       </td>
                     </tr>
