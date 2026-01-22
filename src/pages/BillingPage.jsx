@@ -169,7 +169,7 @@ export default function BillingPage() {
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
+  const [remindingId, setRemindingId] = useState(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
@@ -705,7 +705,7 @@ if (method === "Card" || method === "UPI") {
 
   try {
     const res = await fetch(
-      API_BASE + "/api/payments/" + p._id + "/remind",
+      API_BASE + "/api/billing/" + p._id + "/remind",
       {
         method: "PATCH",
         headers: withAuth({ "Content-Type": "application/json" }),
@@ -719,12 +719,25 @@ if (method === "Card" || method === "UPI") {
       return;
     }
 
+    // ✅ UPDATE LOCAL STATE (THIS WAS MISSING)
+    setPayments(function (prev) {
+      return prev.map(function (x) {
+        if (x._id !== p._id) return x;
+        return {
+          ...x,
+          reminderCount: data.reminderCount,
+          lastReminderAt: data.lastReminderAt,
+        };
+      });
+    });
+
     showSuccess("Payment reminder sent successfully.");
   } catch (err) {
     console.error("sendReminder err", err);
     showError("Failed to send reminder. Please try again.");
   }
 }
+
 
 
 
@@ -951,19 +964,27 @@ const reminderSent = p.lastReminderAt;
                           {isPending && (
   <button
     onClick={function () {
-      sendReminder(p);
+      setRemindingId(p._id);
+      sendReminder(p).finally(function () {
+        setRemindingId(null);
+      });
     }}
-    disabled={reminderSent}
+    disabled={reminderSent || remindingId === p._id}
     className={
       "px-2 py-1 text-xs rounded " +
-      (reminderSent
+      (reminderSent || remindingId === p._id
         ? "bg-gray-100 text-gray-400 cursor-not-allowed"
         : "bg-amber-50 text-amber-700")
     }
   >
-    {reminderSent ? "Reminded" : "Remind"}
+    {remindingId === p._id
+      ? "Sending..."
+      : reminderSent
+      ? "Reminded"
+      : "Remind"}
   </button>
 )}
+
 
                         </div>
                       </td>
