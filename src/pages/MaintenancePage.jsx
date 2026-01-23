@@ -258,10 +258,24 @@ export default function MaintenancePage() {
   async function handleFormSubmit(e) {
     e.preventDefault();
 
-    if (!formData.roomNumber || !/^\d+$/.test(formData.roomNumber)) {
-  showStatus("error", "Room number must contain only numbers");
+ // 🔒 Mandatory field validation
+if (
+  !formData.roomNumber ||
+  !/^\d+$/.test(formData.roomNumber) ||
+  !formData.issue ||
+  !formData.reportedBy ||
+  !formData.type ||
+  !formData.priority ||
+  !formData.status ||
+  !formData.reportedOn
+) {
+  showStatus(
+    "error",
+    "Please fill all fields correctly before submitting."
+  );
   return;
 }
+
 
     try {
       setSaving(true);
