@@ -102,31 +102,30 @@ const [toastType, setToastType] = useState("success");
   }, []);
 
 
-  if (!form.number.trim()) {
-  setToastType("error");
-  setToastMsg("Room number is required");
-  setTimeout(() => setToastMsg(""), 2500);
-  return;
-}
+ 
 
- function saveRoom(e) {
+function saveRoom(e) {
   e.preventDefault();
+
+  if (!form.number.trim()) {
+    setToastType("error");
+    setToastMsg("Room number is required");
+    setTimeout(() => setToastMsg(""), 2500);
+    return;
+  }
 
   const url = editMode
     ? API_BASE + "/api/rooms/" + form._id
     : API_BASE + "/api/rooms";
 
-  const method = editMode ? "PUT" : "POST";
-
   fetch(url, {
-    method,
+    method: editMode ? "PUT" : "POST",
     headers: getAuthHeaders(true),
     body: JSON.stringify(form),
   })
     .then(async (res) => {
       const data = await res.json();
 
-     
       if (!res.ok) {
         setToastType("error");
         setToastMsg(data.error || "Something went wrong");
@@ -134,11 +133,9 @@ const [toastType, setToastType] = useState("success");
         return;
       }
 
-   
       setToastType("success");
       setToastMsg("Room saved successfully");
       setShowForm(false);
-
       setTimeout(() => setToastMsg(""), 2500);
 
       fetch(API_BASE + "/api/rooms", { headers: getAuthHeaders() })
@@ -151,6 +148,7 @@ const [toastType, setToastType] = useState("success");
       setTimeout(() => setToastMsg(""), 3000);
     });
 }
+
 
 
 
