@@ -159,18 +159,13 @@ const [toastType, setToastType] = useState("success");
     method: "DELETE",
     headers: getAuthHeaders(),
   })
-    .then((res) => res.json())
-    .then((data) => {
-      
-      if (data.ok === false) {
-        setToastType("error");
-        setToastMsg(data.error || "Failed to delete room");
-        setTimeout(() => setToastMsg(""), 2500);
-        return;
+    .then((res) => {
+   
+      if (!res.ok) {
+        throw new Error("Delete failed");
       }
 
-     
-      setRooms((p) => p.filter((r) => r._id !== deleteRoom._id));
+      setRooms((prev) => prev.filter((r) => r._id !== deleteRoom._id));
       setDeleteRoom(null);
 
       setToastType("success");
@@ -179,10 +174,11 @@ const [toastType, setToastType] = useState("success");
     })
     .catch(() => {
       setToastType("error");
-      setToastMsg("Something went wrong. Try again.");
+      setToastMsg("Failed to delete room");
       setTimeout(() => setToastMsg(""), 2500);
     });
 }
+
 
 
   return (
