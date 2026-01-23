@@ -17,12 +17,20 @@ function StatusBadge({ value }) {
     occupied: "bg-blue-100 text-blue-700",
     maintenance: "bg-yellow-100 text-yellow-700",
   };
+
+  if (!value) return null; 
+
   return (
-    <span className={`px-3 py-1 rounded-full text-xs font-medium ${map[value]}`}>
+    <span
+      className={`px-3 py-1 rounded-full text-xs font-medium ${
+        map[value] || "bg-gray-100 text-gray-700"
+      }`}
+    >
       {value}
     </span>
   );
 }
+
 
 function Toast({ show, message, type = "success" }) {
   if (!show) return null;
@@ -229,7 +237,7 @@ const [toastType, setToastType] = useState("success");
                 </tr>
               </thead>
               <tbody>
-                {rooms.map((r) => (
+                {Array.isArray(rooms) && rooms.map((r) => (
                   <tr key={r._id} className="border-t hover:bg-gray-50">
                     <td className="px-6 py-4 font-medium">{r.number}</td>
                     <td className="px-6 py-4 capitalize">{r.type}</td>
