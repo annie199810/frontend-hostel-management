@@ -24,14 +24,19 @@ function StatusBadge({ value }) {
   );
 }
 
-function Toast({ show, message }) {
+function Toast({ show, message, type = "success" }) {
   if (!show) return null;
+
+  const bg =
+    type === "error" ? "bg-red-600" : "bg-green-600";
+
   return (
-    <div className="fixed top-6 right-6 bg-green-600 text-white px-4 py-3 rounded-xl shadow-lg z-50">
+    <div className={`fixed top-6 right-6 ${bg} text-white px-4 py-3 rounded-xl shadow-lg z-50`}>
       {message}
     </div>
   );
 }
+
 
 
 function DeleteModal({ open, room, onCancel, onConfirm }) {
@@ -65,6 +70,8 @@ function DeleteModal({ open, room, onCancel, onConfirm }) {
 export default function RoomManagementPage() {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
+const [toastMsg, setToastMsg] = useState("");
+const [toastType, setToastType] = useState("success");
 
   const [showForm, setShowForm] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -77,7 +84,7 @@ export default function RoomManagementPage() {
   });
 
   const [deleteRoom, setDeleteRoom] = useState(null);
-  const [toast, setToast] = useState(false);
+ 
 
   useEffect(() => {
     fetch(API_BASE + "/api/rooms", { headers: getAuthHeaders() })
@@ -85,6 +92,14 @@ export default function RoomManagementPage() {
       .then((d) => setRooms(d.rooms || []))
       .finally(() => setLoading(false));
   }, []);
+
+
+  if (!form.number.trim()) {
+  setToastType("error");
+  setToastMsg("Room number is required");
+  setTimeout(() => setToastMsg(""), 2500);
+  return;
+}
 
  function saveRoom(e) {
   e.preventDefault();
@@ -100,44 +115,71 @@ export default function RoomManagementPage() {
     headers: getAuthHeaders(true),
     body: JSON.stringify(form),
   })
-    .then((r) => r.json())
-    .then((data) => {
-      // 🚫 ERROR FROM BACKEND
-      if (data.ok === false) {
-        alert(data.error); // 👈 SHOW DUPLICATE ALERT
+    .then(async (res) => {
+      const data = await res.json();
+
+     
+      if (!res.ok) {
+        setToastType("error");
+        setToastMsg(data.error || "Something went wrong");
+        setTimeout(() => setToastMsg(""), 3000);
         return;
       }
 
-      // ✅ SUCCESS
+   
+      setToastType("success");
+      setToastMsg("Room saved successfully");
       setShowForm(false);
-      setToast(true);
-      setTimeout(() => setToast(false), 2500);
+
+      setTimeout(() => setToastMsg(""), 2500);
 
       fetch(API_BASE + "/api/rooms", { headers: getAuthHeaders() })
         .then((r) => r.json())
         .then((d) => setRooms(d.rooms));
     })
     .catch(() => {
-      alert("Something went wrong. Please try again.");
+      setToastType("error");
+      setToastMsg("Server error. Please try again.");
+      setTimeout(() => setToastMsg(""), 3000);
     });
 }
 
 
-  function confirmDelete() {
-    fetch(API_BASE + "/api/rooms/" + deleteRoom._id, {
-      method: "DELETE",
-      headers: getAuthHeaders(),
-    }).then(() => {
+
+ function confirmDelete() {
+  fetch(API_BASE + "/api/rooms/" + deleteRoom._id, {
+    method: "DELETE",
+    headers: getAuthHeaders(),
+  })
+    .then((res) => res.json())
+    .then((data) => {
+      
+      if (data.ok === false) {
+        setToastType("error");
+        setToastMsg(data.error || "Failed to delete room");
+        setTimeout(() => setToastMsg(""), 2500);
+        return;
+      }
+
+     
       setRooms((p) => p.filter((r) => r._id !== deleteRoom._id));
       setDeleteRoom(null);
-      setToast(true);
-      setTimeout(() => setToast(false), 2500);
+
+      setToastType("success");
+      setToastMsg("Room deleted successfully");
+      setTimeout(() => setToastMsg(""), 2500);
+    })
+    .catch(() => {
+      setToastType("error");
+      setToastMsg("Something went wrong. Try again.");
+      setTimeout(() => setToastMsg(""), 2500);
     });
-  }
+}
+
 
   return (
     <>
-      <Toast show={toast} message="Action completed successfully" />
+      <Toast show={!!toastMsg} message={toastMsg} type={toastType} />
       <DeleteModal
         open={!!deleteRoom}
         room={deleteRoom}
