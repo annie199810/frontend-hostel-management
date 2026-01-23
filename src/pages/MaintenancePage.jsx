@@ -258,10 +258,10 @@ export default function MaintenancePage() {
   async function handleFormSubmit(e) {
     e.preventDefault();
 
-    if (!formData.roomNumber || !formData.issue) {
-      showStatus("error", "Please enter room number and a short issue title.");
-      return;
-    }
+    if (!formData.roomNumber || !/^\d+$/.test(formData.roomNumber)) {
+  showStatus("error", "Room number must contain only numbers");
+  return;
+}
 
     try {
       setSaving(true);
@@ -639,7 +639,10 @@ export default function MaintenancePage() {
                     className="border px-3 py-2 rounded w-full text-sm"
                     value={formData.roomNumber}
                     onChange={function (e) {
+                       var value = e.target.value;
+                        if (/^\d*$/.test(value)) {
                       handleFormChange("roomNumber", e.target.value);
+                        }
                     }}
                     aria-label="Room number"
                   />
