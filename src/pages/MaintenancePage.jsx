@@ -112,6 +112,7 @@ export default function MaintenancePage() {
   var [showForm, setShowForm] = useState(false);
   var [formMode, setFormMode] = useState("add");
   var [saving, setSaving] = useState(false);
+  var [rooms, setRooms] = useState([]);
 
   var [statusOpen, setStatusOpen] = useState(false);
   var [statusType, setStatusType] = useState("success");
@@ -178,6 +179,25 @@ export default function MaintenancePage() {
       mounted = false;
     };
   }, []);
+
+
+  useEffect(function () {
+  async function loadRooms() {
+    try {
+      const res = await fetch(API_BASE + "/api/rooms", {
+        headers: getAuthHeaders(false),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setRooms(data.rooms || []);
+      }
+    } catch (e) {
+      console.error("Failed to load rooms", e);
+    }
+  }
+
+  loadRooms();
+}, []);
 
  
   var filteredItems = useMemo(
@@ -645,21 +665,25 @@ if (
                   <label className="block text-sm font-medium mb-1">
                     Room Number
                   </label>
-                  <input
-                    ref={firstInputRef}
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="e.g. 103"
-                    className="border px-3 py-2 rounded w-full text-sm"
-                    value={formData.roomNumber}
-                    onChange={function (e) {
-                       var value = e.target.value;
-                        if (/^\d*$/.test(value)) {
-                      handleFormChange("roomNumber", e.target.value);
-                        }
-                    }}
-                    aria-label="Room number"
-                  />
+                 <select
+  ref={firstInputRef}
+  className="border px-3 py-2 rounded w-full text-sm"
+  value={formData.roomNumber}
+  onChange={function (e) {
+    handleFormChange("roomNumber", e.target.value);
+  }}
+>
+  <option value="">Select Room</option>
+
+  {rooms.map(function (r) {
+    return (
+      <option key={r._id} value={r.number}>
+        Room {r.number}
+      </option>
+    );
+  })}
+</select>
+
                 </div>
 
                 <div>
