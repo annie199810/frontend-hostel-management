@@ -417,16 +417,16 @@ export default function ResidentsPage() {
                 />
 
                 <input
-                  type="date"
-                  className="border px-3 py-2 rounded w-full"
-                 value={formData.expectedCheckout || ""}
-                  onChange={(e) =>
-                    handleFormChange(
-                      "expectedCheckout",
-                      e.target.value
-                    )
-                  }
-                />
+  type="date"
+  required
+  min={formData.checkIn || new Date().toISOString().slice(0, 10)}
+  className="border px-3 py-2 rounded w-full"
+  value={formData.expectedCheckout || ""}
+  onChange={(e) =>
+    handleFormChange("expectedCheckout", e.target.value)
+  }
+/>
+
 
                 <select
                   className="border px-3 py-2 rounded w-full"
