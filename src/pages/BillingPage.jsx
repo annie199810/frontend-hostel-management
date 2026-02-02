@@ -8,6 +8,7 @@ function openRazorpay(amount, onSuccess, onFailure) {
   if (!window.Razorpay) {
     alert("Razorpay SDK not loaded");
     return;
+
   }
 
   const options = {
@@ -219,11 +220,7 @@ export default function BillingPage() {
   const [payNowProcessing, setPayNowProcessing] = useState(false);
 
   const [paymentMethod, setPaymentMethod] = useState("Card");
-  const [cardNumber, setCardNumber] = useState("");
-  const [expiry, setExpiry] = useState("");
-  const [cvv, setCvv] = useState("");
-  const [cardName, setCardName] = useState("");
-  const [authorize, setAuthorize] = useState(false);
+  
 
  
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -384,11 +381,7 @@ export default function BillingPage() {
     setPayNowTarget(p);
     setPayNowOpen(true);
     setPaymentMethod("Card");
-    setCardNumber("");
-    setExpiry("");
-    setCvv("");
-    setCardName("");
-    setAuthorize(false);
+   
   }
 
   async function confirmPayNow(methodOverride) {
@@ -486,16 +479,16 @@ if (method === "Card" || method === "UPI") {
       showSuccess("The payment has been processed successfully.");
 
       setPaymentMethod("Card");
-      setCardNumber("");
-      setExpiry("");
-      setCvv("");
-      setCardName("");
-      setAuthorize(false);
+    
+   
       setPayNowOpen(false);
       setPayNowTarget(null);
     } catch (err) {
       console.error("confirmPayNow err", err);
       showError(
+
+
+
         "The payment could not be processed at the moment. Please try again."
       );
     } finally {
@@ -1187,62 +1180,13 @@ const reminderSent = p.lastReminderAt;
                 </div>
 
                 <div className="mt-4">
-                  {paymentMethod === "Card" && (
-                    <div className="space-y-3">
-                      <input
-                        value={cardNumber}
-                        onChange={function (e) {
-                          setCardNumber(e.target.value);
-                        }}
-                        placeholder="Card Number"
-                        className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-100"
-                      />
-                      <div className="flex gap-3">
-                        <input
-                          value={expiry}
-                          onChange={function (e) {
-                            setExpiry(e.target.value);
-                          }}
-                          placeholder="MM/YY"
-                          className="flex-1 border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-100"
-                        />
-                        <input
-                          value={cvv}
-                          onChange={function (e) {
-                            setCvv(e.target.value);
-                          }}
-                          placeholder="CVV"
-                          className="w-32 border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-100"
-                        />
-                      </div>
-                      <input
-                        value={cardName}
-                        onChange={function (e) {
-                          setCardName(e.target.value);
-                        }}
-                        placeholder="Cardholder Name"
-                        className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-100"
-                      />
+                {paymentMethod === "Card" && (
+  <div className="p-3 border rounded text-sm text-slate-700 bg-white">
+    You will be redirected to a secure Razorpay window to complete
+    the card payment. We do not collect card details on this page.
+  </div>
+)}
 
-                      <label className="flex items-start gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={authorize}
-                          onChange={function (e) {
-                            setAuthorize(e.target.checked);
-                          }}
-                          className="mt-1"
-                        />
-                        <div className="text-slate-600">
-                          I authorise this payment and agree to the{" "}
-                          <span className="underline">
-                            terms and conditions
-                          </span>
-                          .
-                        </div>
-                      </label>
-                    </div>
-                  )}
 
                   {paymentMethod === "UPI" && (
                     <div className="space-y-3">
