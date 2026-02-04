@@ -4,6 +4,12 @@ This repository contains the frontend application of the Hostel Management Syste
 
 The application provides a modern, responsive, and role-based user interface for managing hostel operations such as rooms, residents, maintenance, billing, payments, reports, and users.
 
+
+## 🎥 Demo Video
+
+Watch the complete demo of the Hostel Management System here:  
+👉 https://drive.google.com/file/d/1cQP24g1GNHSisuMVr90Xgzw19tAQi9xG/view?usp=drive_link
+
 🚀 Live Application (Frontend)
 
 🔗 Netlify URL
